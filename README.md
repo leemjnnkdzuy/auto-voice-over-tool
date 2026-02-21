@@ -7,6 +7,9 @@
 [![React](https://img.shields.io/badge/React-61DAFB.svg?logo=react&logoColor=black)](#)
 [![Electron](https://img.shields.io/badge/Electron-47848F.svg?logo=electron&logoColor=white)](#)
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-007808.svg?logo=ffmpeg&logoColor=white)](#)
+[![HandBrake](https://img.shields.io/badge/HandBrake-111111.svg?logo=handbrake&logoColor=white)](#)
+[![Whisper](https://img.shields.io/badge/Whisper-10A37F.svg?logo=openai&logoColor=white)](#)
+[![yt-dlp](https://img.shields.io/badge/yt--dlp-FF0000.svg?logo=youtube&logoColor=white)](#)
 
 *Một giải pháp toàn diện để tải, trích xuất, dịch thuật và lồng tiếng tự động cho các video đa phương tiện.*
 
