@@ -1,10 +1,11 @@
-import { Info, Github, Facebook, Mail, AtSign, Copy, CheckCircle2 } from "lucide-react";
+import { Info, Github, Facebook, Mail, AtSign, Copy, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 export const AboutPage = () => {
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [isAccountVisible, setIsAccountVisible] = useState(false);
 
     const handleCopy = (text: string, id: string) => {
         navigator.clipboard.writeText(text);
@@ -201,7 +202,29 @@ export const AboutPage = () => {
                     </ul>
                 </div>
 
-                <div className="text-center mt-12 pt-8 border-t">
+                {/* Support Note */}
+                <div className="mt-8 mb-4 text-sm text-center space-y-2">
+                    <p className="text-muted-foreground leading-relaxed italic">
+                        * Ngẫu hứng viết tool cho vui, nhưng nếu anh em có cần làm các tool tương tự thì cứ thoải mái liên hệ em nha. Hoặc nếu thấy tool chạy mượt mà muốn ủng hộ em cốc cà phê để lấy động lực phát triển các tính năng xịn xò tiếp trong tương lai, thì có thể donate qua:
+                    </p>
+                    <div className="flex items-center justify-center gap-2 font-mono text-base text-foreground font-semibold">
+                        <div className={`flex items-center gap-2 transition-all duration-300 ${!isAccountVisible ? 'blur-[4px] select-none' : ''}`}>
+                            <span>MBBank:</span>
+                            <span className="select-all text-primary">0843004713</span>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-6 h-6 ml-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => setIsAccountVisible(!isAccountVisible)}
+                            title={isAccountVisible ? "Ẩn số tài khoản" : "Hiện số tài khoản"}
+                        >
+                            {isAccountVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="text-center mt-8 pt-8 border-t">
                     <p className="text-xs text-muted-foreground">
                         © 2026 @leemjnnkdzuy. Tự hào phát hành tại Việt Nam.
                     </p>
