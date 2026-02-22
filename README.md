@@ -1,6 +1,6 @@
 <div align="center">
 
-# AVOT - AUTOMATED VIDEO DUBBING CREATOR
+# AVOT - AUTO VOICE OVER TOOL
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](#)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC.svg?logo=typescript&logoColor=white)](#)
