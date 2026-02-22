@@ -11,6 +11,7 @@ import {
 	Clapperboard,
 	FolderOpen,
 	RefreshCw,
+	RotateCcw,
 } from "lucide-react";
 import { VideoPlayer } from "./VideoPlayer";
 import { useProcessContext } from "@/stores/ProcessStore";
@@ -40,6 +41,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 	const [outputPath, setOutputPath] = useState<string | null>(null);
 	const [hasExistingFinal, setHasExistingFinal] = useState(false);
 	const [missingItem, setMissingItem] = useState("");
+	const [refreshKey, setRefreshKey] = useState(Date.now());
 
 	const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
 
@@ -63,8 +65,17 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 			setProjectPath(project.path);
 
 			// Check prerequisites
+			const metadata = await window.api.getProjectMetadata(project.path);
+			if (!metadata || !metadata.videoInfo) {
+				setMissingItem("Không tìm thấy thông tin video!");
+				setPhase("no-data");
+				return;
+			}
+			const videoId = metadata.videoInfo.id;
+
 			const checkResult = await window.api.checkFinalVideoReady(
 				project.path,
+				videoId
 			);
 			if (!checkResult.ready) {
 				setMissingItem(checkResult.missing || "");
@@ -91,16 +102,20 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 				setIsProcessing(false);
 				setHasExistingFinal(true);
 				// Refresh output path
-				window.api
-					.checkFinalVideoReady(projectPath)
-					.then((r: { existingFinal?: string | null }) => {
-						if (r.existingFinal) {
-							setOutputPath(r.existingFinal);
-						}
-						if (isAutoProcessRef.current && onComplete) {
-							onComplete();
-						}
-					});
+				window.api.getProjectMetadata(projectPath).then(metadata => {
+					if (metadata && metadata.videoInfo) {
+						window.api.checkFinalVideoReady(projectPath, metadata.videoInfo.id)
+							.then((r: { existingFinal?: string | null }) => {
+								if (r.existingFinal) {
+									setOutputPath(r.existingFinal);
+									setRefreshKey(Date.now());
+								}
+								if (isAutoProcessRef.current && onComplete) {
+									onComplete();
+								}
+							});
+					}
+				});
 			} else if (progressData.status === "error") {
 				setIsProcessing(false);
 			}
@@ -128,12 +143,20 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 		}
 	}, [isAutoProcess, phase, hasExistingFinal, projectPath, onComplete]);
 
-	const handleStartCreate = () => {
+	const handleStartCreate = async () => {
 		if (!projectPath) return;
+
+		const metadata = await window.api.getProjectMetadata(projectPath);
+		if (!metadata || !metadata.videoInfo) {
+			alert("Không tìm thấy thông tin video!");
+			return;
+		}
+		const videoId = metadata.videoInfo.id;
+
 		setIsProcessing(true);
 		setProgress(null);
 		setOutputPath(null);
-		window.api.createFinalVideo(projectPath);
+		window.api.createFinalVideo(projectPath, videoId);
 	};
 
 	const handleOpenFolder = () => {
@@ -281,9 +304,12 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 				</div>
 
 				{/* Create button */}
-				<Button className='w-full gap-2' onClick={handleStartCreate}>
-					<Film className='w-4 h-4' />
-					Bắt đầu tạo
+				<Button className='w-full gap-2 relative overflow-hidden group shadow-lg shadow-primary/20' size="lg" onClick={handleStartCreate}>
+					<div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/10 via-white/20 to-primary/10 -translate-x-full group-hover:animate-shimmer" />
+					<span className="relative z-10 flex items-center justify-center gap-2">
+						<Film className='w-4 h-4' />
+						Bắt đầu tạo video
+					</span>
 				</Button>
 			</div>
 		);
@@ -296,7 +322,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 			{/* Video Player */}
 			<div className='w-full bg-background rounded-xl overflow-hidden shadow-sm border border-border'>
 				<div className='aspect-video relative'>
-					{outputPath && <VideoPlayer src={outputPath} />}
+					{outputPath && <VideoPlayer key={refreshKey} src={outputPath} />}
 				</div>
 			</div>
 
@@ -327,11 +353,14 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 					</Button>
 					<Button
 						variant='outline'
-						className='gap-2 flex-1'
+						className='gap-2 flex-1 relative overflow-hidden group'
 						onClick={handleStartCreate}
 					>
-						<RefreshCw className='w-4 h-4' />
-						Tạo lại
+						<div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/10 via-white/20 to-primary/10 -translate-x-full group-hover:animate-shimmer" />
+						<span className="relative z-10 flex items-center justify-center gap-2">
+							<RotateCcw className="w-4 h-4" />
+							Tạo lại
+						</span>
 					</Button>
 				</div>
 			</div>

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Clipboard, CheckCircle2, RotateCcw, ArrowRight } from "lucide-react";
+import { Loader2, Clipboard, CheckCircle2, RotateCcw, ArrowRight, Upload, FileVideo } from "lucide-react";
 import { useProcessContext } from "@/stores/ProcessStore";
 
 export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
@@ -90,6 +90,30 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
             }
         });
 
+        window.api.onImportLocalComplete((info) => {
+            if (mounted) {
+                if (info) {
+                    setVideoInfo(info);
+                    setPhase("completed");
+                    // Save metadata on success using current refs
+                    if (projectPathRef.current) {
+                        window.api.saveProjectMetadata(projectPathRef.current, {
+                            videoInfo: info,
+                            status: 'completed'
+                        });
+
+                        if (isAutoProcessRef.current && onComplete) {
+                            onComplete();
+                        }
+                    }
+                } else {
+                    alert("Import video thất bại!");
+                    setIsProcessing(false);
+                    setPhase("input");
+                }
+            }
+        });
+
         return () => {
             mounted = false;
             window.api.removeDownloadListeners();
@@ -147,12 +171,25 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
         window.api.downloadVideo(videoInfo.url, projectPath);
     };
 
+    const handleSelectLocalVideo = async () => {
+        if (!projectPath) {
+            alert("Không tìm thấy đường dẫn project!");
+            return;
+        }
+        const filePath = await window.api.selectVideoFile();
+        if (filePath) {
+            setIsProcessing(true);
+            setPhase("downloading");
+            setDownloadProgress({ video: 0, audio: 0 });
+            window.api.importLocalVideo(filePath, projectPath);
+        }
+    };
+
     const handleReset = () => {
         setPhase("input");
         setUrl("");
         setVideoInfo(null);
         setDownloadProgress({ video: 0, audio: 0 });
-        // Reset metadata? Maybe not until they download something new.
     };
 
     if (isChecking) {
@@ -189,11 +226,25 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                                 <Clipboard className="w-4 h-4" />
                             </Button>
                         </div>
-                        <Button onClick={handleInitialSubmit} disabled={isProcessing}>
+                        <Button onClick={handleInitialSubmit} disabled={isProcessing} className="relative overflow-hidden group min-w-[100px]">
+                            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/10 via-white/20 to-primary/10 -translate-x-full group-hover:animate-shimmer" />
                             {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tiếp tục"}
                         </Button>
                     </div>
-                    {/* Recent or Helper text could go here */}
+
+                    <div className="flex flex-col items-center gap-2 pt-2 border-t w-full">
+                        <p className="text-xs text-muted-foreground">Hoặc</p>
+                        <Button
+                            variant="outline"
+                            className="gap-2 w-full max-w-sm relative overflow-hidden group"
+                            onClick={handleSelectLocalVideo}
+                            disabled={isProcessing}
+                        >
+                            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 -translate-x-full group-hover:animate-shimmer" />
+                            <Upload className="w-4 h-4 relative z-10" />
+                            <span className="relative z-10">Chọn video từ máy tính</span>
+                        </Button>
+                    </div>
                 </div>
             )}
 
@@ -215,9 +266,10 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                         <div className="flex flex-col gap-2 mt-auto shrink-0">
                             <Button
                                 size="lg"
-                                className="w-full shadow-lg shadow-primary/20"
+                                className="w-full shadow-lg shadow-primary/20 relative overflow-hidden group"
                                 onClick={handleConfirmDownload}
                             >
+                                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/10 via-white/20 to-primary/10 -translate-x-full group-hover:animate-shimmer" />
                                 Tải xuống ngay
                             </Button>
                             <Button
@@ -284,8 +336,11 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                         <div className="flex flex-col gap-2 mt-auto shrink-0">
                             {/* Actions for completed state */}
                             {onComplete && (
-                                <Button size="lg" onClick={onComplete} className="w-full shadow-lg shadow-green-500/20 bg-green-600 hover:bg-green-700">
-                                    Tiếp tục tạo phụ đề <ArrowRight className="w-4 h-4 ml-2" />
+                                <Button size="lg" onClick={onComplete} className="w-full shadow-lg shadow-green-500/20 bg-green-600 hover:bg-green-700 relative overflow-hidden group border-none">
+                                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:animate-shimmer" />
+                                    <span className="relative z-10 flex items-center justify-center gap-2">
+                                        Tiếp tục tạo phụ đề <ArrowRight className="w-4 h-4" />
+                                    </span>
                                 </Button>
                             )}
                             <Button

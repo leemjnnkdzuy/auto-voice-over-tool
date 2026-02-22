@@ -127,3 +127,19 @@ export const saveProjectMetadata = (projectPath: string, metadata: any): boolean
         return false;
     }
 };
+
+export const clearProjectData = (projectPath: string): boolean => {
+    try {
+        const dirsToClear = ['original', 'transcript', 'translate', 'output'];
+        for (const dirName of dirsToClear) {
+            const dirPath = path.join(projectPath, dirName);
+            if (fs.existsSync(dirPath)) {
+                fs.rmSync(dirPath, { recursive: true, force: true });
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error("Error clearing project data:", error);
+        return false;
+    }
+};

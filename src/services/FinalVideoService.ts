@@ -36,10 +36,14 @@ const runFfmpeg = (args: string[]): Promise<{ success: boolean; stderr: string }
         });
 
         proc.on('close', (code) => {
+            if (code !== 0) {
+                console.error(`[FFMPEG ERROR] Code ${code}\nArgs: ${args.join(' ')}\nStderr: ${stderr}`);
+            }
             resolve({ success: code === 0, stderr });
         });
 
         proc.on('error', (err) => {
+            console.error(`[FFMPEG SPAWN ERROR] ${err.message}`);
             resolve({ success: false, stderr: err.message });
         });
     });
@@ -151,18 +155,16 @@ const buildSegmentMap = async (
 };
 
 /**
- * NVENC video encoding args — used for ALL segments.
+ * Video encoding args — used for ALL segments.
  * Re-encoding everything ensures:
  * - Each clip starts with a proper keyframe (no frozen frames)
  * - Frame-accurate seeking (no missing video)
  * - Consistent codec params across all clips (no stuttering at concat joins)
  */
-const NVENC_ARGS = [
-    '-c:v', 'h264_nvenc',
-    '-preset', 'p4',       // Fast preset (p1=fastest ... p7=slowest). p4 = good speed/quality.
-    '-rc', 'vbr',          // Variable bitrate for better quality  
-    '-cq', '20',           // Constant quality (lower=better, 20=very good)
-    '-b:v', '0',           // No target bitrate, let CQ decide
+const VIDEO_ARGS = [
+    '-c:v', 'h264_nvenc',  // Use GPU NVENC encoding for better speed
+    '-preset', 'fast',     // Fast preset
+    '-cq', '22',           // Constant Quality (similar to CRF)
 ];
 
 const AUDIO_ARGS = ['-c:a', 'aac', '-b:a', '192k', '-ar', '44100', '-ac', '2'];
@@ -187,7 +189,7 @@ const processSegment = async (
             '-ss', segment.videoStart.toFixed(3),
             '-t', duration.toFixed(3),
             '-i', originalVideoPath,
-            ...NVENC_ARGS,
+            ...VIDEO_ARGS,
             ...AUDIO_ARGS,
             outputPath,
         ]);
@@ -203,7 +205,7 @@ const processSegment = async (
             '-i', originalVideoPath,
             '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
             '-map', '0:v', '-map', '1:a',
-            ...NVENC_ARGS,
+            ...VIDEO_ARGS,
             ...AUDIO_ARGS,
             '-t', duration.toFixed(3),
             outputPath,
@@ -224,7 +226,7 @@ const processSegment = async (
             '-i', originalVideoPath,
             '-i', segment.audioPath,
             '-map', '0:v', '-map', '1:a',
-            ...NVENC_ARGS,
+            ...VIDEO_ARGS,
             '-af', 'apad',
             ...AUDIO_ARGS,
             '-t', videoDur.toFixed(3),
@@ -242,7 +244,7 @@ const processSegment = async (
             '-i', originalVideoPath,
             '-i', segment.audioPath,
             '-map', '0:v', '-map', '1:a',
-            ...NVENC_ARGS,
+            ...VIDEO_ARGS,
             '-af', `atempo=${ratio.toFixed(4)},apad`,
             ...AUDIO_ARGS,
             '-t', videoDur.toFixed(3),
@@ -265,7 +267,7 @@ const processSegment = async (
         '-map', '0:v', '-map', '1:a',
         '-vf', `setpts=${videoSlowFactor.toFixed(4)}*PTS`,
         '-af', 'atempo=1.3,apad',
-        ...NVENC_ARGS,
+        ...VIDEO_ARGS,
         ...AUDIO_ARGS,
         '-t', targetDur.toFixed(3),
         outputPath,
@@ -310,17 +312,30 @@ const rerenderWithHandBrake = async (
 ): Promise<boolean> => {
     return new Promise((resolve) => {
         const handbrake = getHandBrakePath();
+
+        // HandBrakeCLI will hang waiting for user input if the output file already exists.
+        // We must ensure the destination file is deleted first.
+        if (fs.existsSync(outputPath)) {
+            try {
+                fs.unlinkSync(outputPath);
+            } catch (e) {
+                console.error("Failed to delete existing HandBrake output file:", e);
+                resolve(false);
+                return;
+            }
+        }
+
         // Settings theo hướng dẫn:
         // - Framerate: "Same as source" (không chỉ định --rate → tự lấy từ source)
         // - Constant Framerate (--cfr) thay vì Peak Framerate
-        // - Encoder: NVENC H.264 (GPU acceleration)
-        // - Quality: 20 (chất lượng tốt)
+        // - Encoder: nvenc_h264 (GPU) để tăng tốc render
+        // - Quality: 22 (tương đương CRF 22)
         // - Audio: AAC stereo, giữ nguyên sample rate từ source
         const args = [
             '-i', inputPath,
             '-o', outputPath,
             '--encoder', 'nvenc_h264',
-            '--quality', '20',
+            '--quality', '22',
             '--cfr',                    // Constant Framerate (quan trọng nhất!)
             '--aencoder', 'av_aac',
             '--ab', '192',
@@ -361,35 +376,39 @@ const rerenderWithHandBrake = async (
 /**
  * Create final dubbed video.
  *
- * ALL segments are re-encoded with NVENC GPU encoder.
+ * ALL segments are re-encoded with x264 CPU encoder.
  * This guarantees:
  *   ✅ No frozen frames (each clip starts with proper keyframe)
  *   ✅ No missing video (frame-accurate seeking + re-encoding)
  *   ✅ No stuttering (consistent codec params for concat)
  *   ✅ Audio max 1.3x speed (natural sounding)
  *   ✅ Video slowdown when needed (smooth playback)
+ *   ✅ Fallbacks to CPU to avoid strict NVENC driver requirements
  *
- * 3 concurrent NVENC sessions (GPU session limit).
- * Expected: ~2 minutes for 650 segments.
+ * Expected time depends heavily on CPU speed.
  */
 export const createFinalVideo = async (
     projectPath: string,
+    videoId: string,
     onProgress: (p: FinalVideoProgress) => void,
 ): Promise<string | null> => {
     try {
         const originalVideo = findOriginalVideo(projectPath);
+        console.log(`[FinalVideo] Searching for original video in: ${path.join(projectPath, 'original', 'video')} -> Found:`, originalVideo);
         if (!originalVideo) {
             onProgress({ status: 'error', progress: 0, detail: 'Không tìm thấy video gốc!' });
             return null;
         }
 
         const originalSrt = findOriginalSrt(projectPath);
+        console.log(`[FinalVideo] Searching for original SRT in: ${path.join(projectPath, 'transcript')} -> Found:`, originalSrt);
         if (!originalSrt) {
             onProgress({ status: 'error', progress: 0, detail: 'Không tìm thấy file SRT gốc!' });
             return null;
         }
 
         const audioDir = path.join(projectPath, 'audio_gene');
+        console.log(`[FinalVideo] Checking for audio_gene dir: ${audioDir} -> Exists:`, fs.existsSync(audioDir));
         if (!fs.existsSync(audioDir)) {
             onProgress({ status: 'error', progress: 0, detail: 'Không tìm thấy thư mục audio_gene!' });
             return null;
@@ -398,6 +417,7 @@ export const createFinalVideo = async (
         onProgress({ status: 'preparing', progress: 5, detail: 'Đang phân tích video và SRT...' });
 
         const videoDuration = await getMediaDuration(originalVideo);
+        console.log(`[FinalVideo] Video duration: ${videoDuration}`);
         if (videoDuration === 0) {
             onProgress({ status: 'error', progress: 0, detail: 'Không thể đọc thông tin video!' });
             return null;
@@ -405,6 +425,7 @@ export const createFinalVideo = async (
 
         const srtContent = fs.readFileSync(originalSrt, 'utf-8');
         const segments = await buildSegmentMap(srtContent, audioDir, videoDuration);
+        console.log(`[FinalVideo] Segments generated:`, segments.length);
 
         if (segments.length === 0) {
             onProgress({ status: 'error', progress: 0, detail: 'Không có đoạn nào để xử lý!' });
@@ -475,6 +496,7 @@ export const createFinalVideo = async (
         }
 
         const validPaths = segmentPaths.filter((p): p is string => p !== null);
+        console.log(`[FinalVideo] Processing completely, valid paths: ${validPaths.length} / ${segmentPaths.length}`);
         if (validPaths.length === 0) {
             onProgress({ status: 'error', progress: 0, detail: 'Không thể xử lý bất kỳ đoạn nào!' });
             fs.rmSync(tempDir, { recursive: true, force: true });
@@ -497,12 +519,14 @@ export const createFinalVideo = async (
             fs.mkdirSync(outputDir, { recursive: true });
         }
 
-        const outputPath = path.join(outputDir, 'final_video.mp4');
+        const outputPath = path.join(outputDir, `${videoId}_final.mp4`);
+        console.log(`[FinalVideo] Output path for concat: ${outputPath}`);
         if (fs.existsSync(outputPath)) {
             fs.unlinkSync(outputPath);
         }
 
         const concatSuccess = await concatenateSegments(validPaths, outputPath, tempDir);
+        console.log(`[FinalVideo] Concat success: ${concatSuccess}, file exists: ${fs.existsSync(outputPath)}`);
 
         try {
             fs.rmSync(tempDir, { recursive: true, force: true });
@@ -520,7 +544,7 @@ export const createFinalVideo = async (
             detail: 'Đang re-render video bằng HandBrake để đồng bộ khung hình & âm thanh...',
         });
 
-        const rerenderedPath = path.join(outputDir, 'final_video_synced.mp4');
+        const rerenderedPath = path.join(outputDir, `${videoId}_final_synced.mp4`);
         if (fs.existsSync(rerenderedPath)) {
             fs.unlinkSync(rerenderedPath);
         }
@@ -536,6 +560,7 @@ export const createFinalVideo = async (
                 });
             },
         );
+        console.log(`[FinalVideo] Handbrake success: ${rerenderSuccess}, file exists: ${fs.existsSync(rerenderedPath)}`);
 
         if (rerenderSuccess && fs.existsSync(rerenderedPath)) {
             // Replace the original concat output with the re-rendered version

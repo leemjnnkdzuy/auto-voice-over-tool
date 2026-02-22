@@ -64,10 +64,14 @@ const parseSrtContent = (content: string): SrtSegment[] => {
 const isSentenceEnd = (text: string, pos: number): boolean => {
     if (pos < 0 || pos >= text.length) return false;
     const char = text[pos];
-    // Sentence-ending punctuation
+
+    // Check Asian punctuations (Chinese/Japanese ending marks)
+    if (char === '。' || char === '！' || char === '？') {
+        return true;
+    }
+
+    // Sentence-ending punctuation (English/Latin)
     if (char === '.' || char === '!' || char === '?') {
-        // Avoid splitting on abbreviations like "Mr.", "Dr.", "etc.", "St."
-        // Check if it's followed by a space and uppercase letter (or end of text)
         const nextChar = pos + 1 < text.length ? text[pos + 1] : ' ';
         const nextNextChar = pos + 2 < text.length ? text[pos + 2] : '';
         if (nextChar === ' ' && (nextNextChar === '' || /[A-Z"'\u201C\u201D]/.test(nextNextChar))) {
@@ -80,7 +84,6 @@ const isSentenceEnd = (text: string, pos: number): boolean => {
 
 /**
  * Interpolate a timestamp within a segment based on character position
- * Uses linear interpolation between start and end times
  */
 const interpolateTime = (startMs: number, endMs: number, charPos: number, totalChars: number): number => {
     if (totalChars <= 0) return startMs;
@@ -88,26 +91,140 @@ const interpolateTime = (startMs: number, endMs: number, charPos: number, totalC
     return Math.round(startMs + (endMs - startMs) * ratio);
 };
 
-// Max segment duration in ms (12 seconds)
-const MAX_SEGMENT_DURATION_MS = 12000;
-// Min segment duration in ms (1.5 seconds)
-const MIN_SEGMENT_DURATION_MS = 1500;
+// Max segment duration in ms (10 seconds)
+const MAX_SEGMENT_DURATION_MS = 10000;
+// Min segment duration in ms (1.2 seconds)
+const MIN_SEGMENT_DURATION_MS = 1200;
 
 /**
- * Optimize SRT segments by re-splitting at sentence boundaries.
- * 
- * Strategy:
- * 1. Merge all segments into a continuous stream with character-level timing
- * 2. Find sentence boundaries in the merged text
- * 3. Create new segments that align with sentence boundaries
- * 4. If a sentence is too long, split at comma/conjunction boundaries
+ * Detect if the SRT content is primarily CJK (Chinese/Japanese/Korean)
  */
-export const optimizeSrt = (srtContent: string): string => {
-    const originalSegments = parseSrtContent(srtContent);
-    if (originalSegments.length === 0) return srtContent;
+const isCJKDominant = (text: string): boolean => {
+    const cjkCount = (text.match(/[\u3000-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]/g) || []).length;
+    return cjkCount > text.length * 0.2; // >20% CJK characters
+};
 
-    // Step 1: Build a character-to-time mapping
-    // Each character in the merged text maps to an approximate timestamp
+interface SimpleSpan {
+    startMs: number;
+    endMs: number;
+    text: string;
+}
+
+/**
+ * CJK strategy: preserve Whisper's segment boundaries, merge short, split long
+ */
+const optimizeSrtCJK = (segments: SrtSegment[]): string => {
+    const spans: SimpleSpan[] = segments.map(seg => ({
+        startMs: timeToMs(seg.startTime),
+        endMs: timeToMs(seg.endTime),
+        text: seg.text.trim(),
+    })).filter(s => s.text.length > 0);
+
+    // Merge very short segments with adjacent ones
+    const merged: SimpleSpan[] = [];
+    for (const span of spans) {
+        const duration = span.endMs - span.startMs;
+        const prev = merged[merged.length - 1];
+
+        if (prev && duration < MIN_SEGMENT_DURATION_MS) {
+            const combined = span.endMs - prev.startMs;
+            if (combined <= MAX_SEGMENT_DURATION_MS * 1.5) {
+                prev.text = prev.text + span.text;
+                prev.endMs = span.endMs;
+                continue;
+            }
+        }
+        merged.push({ ...span });
+    }
+
+    // Split any segments that are too long
+    const final: SimpleSpan[] = [];
+    for (const span of merged) {
+        const duration = span.endMs - span.startMs;
+
+        if (duration <= MAX_SEGMENT_DURATION_MS) {
+            final.push(span);
+            continue;
+        }
+
+        // Try to split at CJK punctuation first
+        const text = span.text;
+        const subSplits: number[] = [];
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (c === '。' || c === '！' || c === '？' || c === '.' || c === '!' || c === '?') {
+                subSplits.push(i + 1);
+            } else if ((c === '，' || c === '、' || c === ',') && i > 0) {
+                subSplits.push(i + 1);
+            }
+        }
+
+        if (subSplits.length > 0) {
+            let lastIdx = 0;
+            for (const splitIdx of subSplits) {
+                const chunk = text.substring(lastIdx, splitIdx).trim();
+                if (chunk.length > 0) {
+                    const chunkRatio = lastIdx / text.length;
+                    const splitRatio = splitIdx / text.length;
+                    final.push({
+                        startMs: Math.round(span.startMs + (span.endMs - span.startMs) * chunkRatio),
+                        endMs: Math.round(span.startMs + (span.endMs - span.startMs) * splitRatio),
+                        text: chunk,
+                    });
+                }
+                lastIdx = splitIdx;
+            }
+            if (lastIdx < text.length) {
+                const chunk = text.substring(lastIdx).trim();
+                if (chunk.length > 0) {
+                    final.push({
+                        startMs: Math.round(span.startMs + (span.endMs - span.startMs) * (lastIdx / text.length)),
+                        endMs: span.endMs,
+                        text: chunk,
+                    });
+                }
+            }
+        } else {
+            // No punctuation — split by character count proportionally
+            const numChunks = Math.ceil(duration / MAX_SEGMENT_DURATION_MS);
+            const chunkSize = Math.ceil(text.length / numChunks);
+            for (let i = 0; i < numChunks; i++) {
+                const startChar = i * chunkSize;
+                const endChar = Math.min((i + 1) * chunkSize, text.length);
+                const chunk = text.substring(startChar, endChar).trim();
+                if (chunk.length === 0) continue;
+                final.push({
+                    startMs: Math.round(span.startMs + duration * (startChar / text.length)),
+                    endMs: Math.round(span.startMs + duration * (endChar / text.length)),
+                    text: chunk,
+                });
+            }
+        }
+    }
+
+    const outputLines: string[] = [];
+    for (let i = 0; i < final.length; i++) {
+        const s = final[i];
+        outputLines.push(`${i + 1}`);
+        outputLines.push(`${msToTime(s.startMs)} --> ${msToTime(s.endMs)}`);
+        outputLines.push(s.text);
+        outputLines.push('');
+    }
+    return outputLines.join('\r\n');
+};
+
+interface LatinSpan {
+    startIdx: number;
+    endIdx: number;
+    text: string;
+    startMs: number;
+    endMs: number;
+}
+
+/**
+ * Latin text strategy: merge all, then re-split at sentence boundaries
+ */
+const optimizeSrtLatin = (originalSegments: SrtSegment[]): string => {
     interface CharTimeInfo {
         char: string;
         timeMs: number;
@@ -127,41 +244,29 @@ export const optimizeSrt = (srtContent: string): string => {
             });
         }
 
-        // Add a space between segments
         if (charTimeline.length > 0) {
             const lastTime = charTimeline[charTimeline.length - 1].timeMs;
             charTimeline.push({ char: ' ', timeMs: lastTime });
         }
     }
 
-    if (charTimeline.length === 0) return srtContent;
+    if (charTimeline.length === 0) {
+        return originalSegments.map((s, i) => `${i + 1}\r\n${s.startTime} --> ${s.endTime}\r\n${s.text}\r\n`).join('\r\n');
+    }
 
-    // Build the full text
     const fullText = charTimeline.map(c => c.char).join('');
 
-    // Step 2: Find split points at sentence boundaries
-    const splitPoints: number[] = []; // character indices where we should split (after this index)
-
+    const splitPoints: number[] = [];
     for (let i = 0; i < fullText.length; i++) {
         if (isSentenceEnd(fullText, i)) {
-            splitPoints.push(i + 1); // Split after the punctuation + the space
+            splitPoints.push(i + 1);
         }
     }
 
-    // Step 3: Create sentence-based segments
-    interface TextSpan {
-        startIdx: number;
-        endIdx: number;
-        text: string;
-        startMs: number;
-        endMs: number;
-    }
-
-    const sentenceSpans: TextSpan[] = [];
+    const sentenceSpans: LatinSpan[] = [];
     let lastSplit = 0;
 
     for (const splitIdx of splitPoints) {
-        // Find the actual split point (skip trailing spaces)
         let actualEnd = splitIdx;
         while (actualEnd < fullText.length && fullText[actualEnd] === ' ') {
             actualEnd++;
@@ -182,7 +287,6 @@ export const optimizeSrt = (srtContent: string): string => {
         lastSplit = actualEnd;
     }
 
-    // Add remaining text as last span
     if (lastSplit < fullText.length) {
         const text = fullText.substring(lastSplit).trim();
         if (text.length > 0) {
@@ -196,8 +300,7 @@ export const optimizeSrt = (srtContent: string): string => {
         }
     }
 
-    // Step 4: Handle segments that are too long by splitting at natural breakpoints
-    const finalSpans: TextSpan[] = [];
+    const finalSpans: LatinSpan[] = [];
 
     for (const span of sentenceSpans) {
         const duration = span.endMs - span.startMs;
@@ -207,7 +310,6 @@ export const optimizeSrt = (srtContent: string): string => {
             continue;
         }
 
-        // Sentence is too long — try to split at commas or conjunctions
         const subSplitPoints: number[] = [];
         const text = fullText.substring(span.startIdx, span.endIdx + 1);
 
@@ -215,24 +317,20 @@ export const optimizeSrt = (srtContent: string): string => {
             const globalIdx = span.startIdx + i;
             const char = text[i];
 
-            // Split at commas followed by space
-            if (char === ',' && i + 1 < text.length && text[i + 1] === ' ') {
+            if ((char === ',' && i + 1 < text.length && text[i + 1] === ' ') || char === '，' || char === '、') {
                 const posMs = charTimeline[globalIdx]?.timeMs || 0;
                 const durationFromStart = posMs - span.startMs;
-                // Only split if we have at least MIN_SEGMENT_DURATION from the last split
                 if (durationFromStart >= MIN_SEGMENT_DURATION_MS) {
-                    subSplitPoints.push(i + 1); // After comma
+                    subSplitPoints.push(i + 1);
                 }
             }
         }
 
         if (subSplitPoints.length === 0) {
-            // Can't split further, keep as is
             finalSpans.push(span);
             continue;
         }
 
-        // Use sub-splits to break the long sentence
         let subLastSplit = 0;
         for (const subSplit of subSplitPoints) {
             const subText = text.substring(subLastSplit, subSplit + 1).trim();
@@ -244,7 +342,6 @@ export const optimizeSrt = (srtContent: string): string => {
                 const subEndMs = charTimeline[subEndIdx]?.timeMs || 0;
                 const subDuration = subEndMs - subStartMs;
 
-                // Only create a new segment if it's long enough
                 if (subDuration >= MIN_SEGMENT_DURATION_MS || finalSpans.length === 0) {
                     finalSpans.push({
                         startIdx: subStartIdx,
@@ -258,18 +355,15 @@ export const optimizeSrt = (srtContent: string): string => {
             }
         }
 
-        // Remaining text after last sub-split
         if (subLastSplit < text.length) {
             const remainText = text.substring(subLastSplit).trim();
             if (remainText.length > 0) {
                 const subStartIdx = span.startIdx + subLastSplit;
-                // Merge with previous span if remaining is too short
                 const remainStartMs = charTimeline[subStartIdx]?.timeMs || 0;
                 const remainEndMs = span.endMs;
                 const remainDuration = remainEndMs - remainStartMs;
 
                 if (remainDuration < MIN_SEGMENT_DURATION_MS && finalSpans.length > 0) {
-                    // Merge with previous
                     const prev = finalSpans[finalSpans.length - 1];
                     prev.text = prev.text + ' ' + remainText;
                     prev.endMs = remainEndMs;
@@ -287,12 +381,10 @@ export const optimizeSrt = (srtContent: string): string => {
         }
     }
 
-    // Step 5: Merge very short segments with their neighbors
-    const mergedSpans: TextSpan[] = [];
+    const mergedSpans: LatinSpan[] = [];
     for (const span of finalSpans) {
         const duration = span.endMs - span.startMs;
         if (duration < MIN_SEGMENT_DURATION_MS && mergedSpans.length > 0) {
-            // Merge with previous
             const prev = mergedSpans[mergedSpans.length - 1];
             prev.text = prev.text + ' ' + span.text;
             prev.endMs = span.endMs;
@@ -302,7 +394,6 @@ export const optimizeSrt = (srtContent: string): string => {
         }
     }
 
-    // Step 6: Build the new SRT output
     const outputLines: string[] = [];
     for (let i = 0; i < mergedSpans.length; i++) {
         const span = mergedSpans[i];
@@ -313,6 +404,26 @@ export const optimizeSrt = (srtContent: string): string => {
     }
 
     return outputLines.join('\r\n');
+};
+
+/**
+ * Optimize SRT segments by re-splitting at sentence boundaries.
+ *
+ * Routes to CJK strategy for Chinese/Japanese/Korean (preserves Whisper's timestamps),
+ * or Latin strategy for other languages (merges then re-splits by sentence).
+ */
+export const optimizeSrt = (srtContent: string): string => {
+    const originalSegments = parseSrtContent(srtContent);
+    if (originalSegments.length === 0) return srtContent;
+
+    const allText = originalSegments.map(s => s.text).join('');
+    const useCJKStrategy = isCJKDominant(allText);
+
+    if (useCJKStrategy) {
+        return optimizeSrtCJK(originalSegments);
+    }
+
+    return optimizeSrtLatin(originalSegments);
 };
 
 /**

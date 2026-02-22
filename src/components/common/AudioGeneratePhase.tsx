@@ -12,7 +12,15 @@ import {
     Music,
     Square,
     RefreshCw,
+    Settings,
 } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { parseSrt, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
 import { useProcessContext } from "@/stores/ProcessStore";
@@ -41,7 +49,17 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
     const [audioFiles, setAudioFiles] = useState<{ name: string; path: string }[]>([]);
     const [entryStatuses, setEntryStatuses] = useState<Map<number, EntryAudioStatus>>(new Map());
     const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+    const [voices, setVoices] = useState<any[]>([]);
+    const [selectedVoice, setSelectedVoice] = useState("");
+    const [isPreviewing, setIsPreviewing] = useState(false);
+    const [concurrency, setConcurrency] = useState(3);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [isPlayAll, setIsPlayAll] = useState(false);
+    const isPlayAllRef = useRef(false);
+
+    useEffect(() => {
+        isPlayAllRef.current = isPlayAll;
+    }, [isPlayAll]);
 
     const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
 
@@ -67,12 +85,19 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
             }
             setProjectPath(project.path);
 
+            const metadata = await window.api.getProjectMetadata(project.path);
+            if (!metadata || !metadata.videoInfo) {
+                setPhase("loading");
+                return;
+            }
+            const videoId = metadata.videoInfo.id;
+
             const langs = ["vi", "zh", "ja", "ko", "fr", "de", "es", "pt", "ru", "en", "th"];
             let foundLang = "";
             let foundContent = "";
 
             for (const lang of langs) {
-                const content = await window.api.getTranslatedSrt(project.path, lang);
+                const content = await window.api.getTranslatedSrt(project.path, videoId, lang);
                 if (content) {
                     foundLang = lang;
                     foundContent = content;
@@ -85,7 +110,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                 setTranslatedEntries(entries);
                 setTranslatedLang(foundLang);
 
-                const existingAudio = await window.api.listGeneratedAudio(project.path);
+                const existingAudio = await window.api.listGeneratedAudio(project.path, videoId);
                 if (existingAudio && existingAudio.length > 0) {
                     setAudioFiles(existingAudio);
                     // Mark existing audio entries as done
@@ -107,6 +132,31 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
 
         init();
     }, [id]);
+
+    // Fetch voices and load saved voice
+    useEffect(() => {
+        const fetchVoices = async () => {
+            if (!translatedLang) return;
+            const allVoices = await window.api.getEdgeVoices();
+            // Filter voices by language (e.g. 'vi' -> 'vi-VN')
+            const filtered = allVoices.filter((v: any) => v.Locale.startsWith(translatedLang));
+            setVoices(filtered);
+
+            // Load saved voice from localStorage
+            const savedVoice = localStorage.getItem(`voice_${translatedLang}`);
+            if (savedVoice && filtered.some(v => v.ShortName === savedVoice)) {
+                setSelectedVoice(savedVoice);
+            } else if (filtered.length > 0) {
+                setSelectedVoice(filtered[0].ShortName);
+            }
+
+            const savedConcurrency = localStorage.getItem('audio_concurrency');
+            if (savedConcurrency) {
+                setConcurrency(parseInt(savedConcurrency, 10));
+            }
+        };
+        fetchVoices();
+    }, [translatedLang]);
 
     useEffect(() => {
         window.api.onAudioGenerateProgress((progressData: AudioProgress) => {
@@ -130,40 +180,44 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
             if (progressData.status === 'done') {
                 setIsGenerating(false);
                 if (projectPath) {
-                    window.api.listGeneratedAudio(projectPath).then(files => {
-                        setAudioFiles(files);
+                    window.api.getProjectMetadata(projectPath).then(metadata => {
+                        if (metadata && metadata.videoInfo) {
+                            window.api.listGeneratedAudio(projectPath, metadata.videoInfo.id).then(files => {
+                                setAudioFiles(files);
 
-                        // If it's a global done (not a single item retry done)
-                        if (progressData.entryIndex === undefined) {
-                            // Check for failed entries for auto-retry
-                            setEntryStatuses(currentStatuses => {
-                                const failedIndices = Array.from(currentStatuses.entries())
-                                    .filter(([_, s]) => s === 'failed')
-                                    .map(([idx]) => idx);
+                                // If it's a global done (not a single item retry done)
+                                if (progressData.entryIndex === undefined) {
+                                    // Check for failed entries for auto-retry
+                                    setEntryStatuses(currentStatuses => {
+                                        const failedIndices = Array.from(currentStatuses.entries())
+                                            .filter(([_, s]) => s === 'failed')
+                                            .map(([idx]) => idx);
 
-                                if (isAutoProcessRef.current) {
-                                    if (failedIndices.length > 0 && retryCountRef.current < 3) {
-                                        retryCountRef.current += 1;
-                                        retryItemsQueueRef.current = failedIndices;
-                                        setTimeout(() => processRetryQueue(failedIndices), 500);
-                                    } else if (onComplete) {
-                                        onComplete();
+                                        if (isAutoProcessRef.current) {
+                                            if (failedIndices.length > 0 && retryCountRef.current < 3) {
+                                                retryCountRef.current += 1;
+                                                retryItemsQueueRef.current = failedIndices;
+                                                setTimeout(() => processRetryQueue(failedIndices), 500);
+                                            } else if (onComplete) {
+                                                onComplete();
+                                            }
+                                        }
+                                        return currentStatuses;
+                                    });
+                                } else {
+                                    // It's a single item done
+                                    if (retryItemsQueueRef.current.length > 0) {
+                                        // We are in a batch retry process
+                                        retryItemsQueueRef.current = retryItemsQueueRef.current.filter(id => id !== progressData.entryIndex);
+                                        if (retryItemsQueueRef.current.length === 0) {
+                                            // Batch retry finished
+                                            if (isAutoProcessRef.current && onComplete) {
+                                                onComplete();
+                                            }
+                                        }
                                     }
                                 }
-                                return currentStatuses;
                             });
-                        } else {
-                            // It's a single item done
-                            if (retryItemsQueueRef.current.length > 0) {
-                                // We are in a batch retry process
-                                retryItemsQueueRef.current = retryItemsQueueRef.current.filter(id => id !== progressData.entryIndex);
-                                if (retryItemsQueueRef.current.length === 0) {
-                                    // Batch retry finished
-                                    if (isAutoProcessRef.current && onComplete) {
-                                        onComplete();
-                                    }
-                                }
-                            }
                         }
                     });
                 }
@@ -203,7 +257,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
         }
     }, [isAutoProcess, phase, translatedEntries.length, translatedLang, projectPath, audioFiles.length, entryStatuses, onComplete]);
 
-    const handleStartGenerate = () => {
+    const handleStartGenerate = async () => {
         if (!projectPath || !translatedLang) return;
         setIsGenerating(true);
         retryCountRef.current = 0;
@@ -215,20 +269,75 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
         });
         setEntryStatuses(statuses);
         setAudioFiles([]);
-        window.api.generateAudio(projectPath, translatedLang);
+        const metadata = await window.api.getProjectMetadata(projectPath);
+        if (!metadata || !metadata.videoInfo) return;
+        const videoId = metadata.videoInfo.id;
+        window.api.generateAudio(projectPath, videoId, translatedLang, concurrency, selectedVoice);
     };
 
     const processRetryQueue = async (indices: number[]) => {
         setIsGenerating(true);
+        const metadata = await window.api.getProjectMetadata(projectPath);
+        if (!metadata || !metadata.videoInfo) return;
+        const videoId = metadata.videoInfo.id;
         for (const idx of indices) {
-            await window.api.generateSingleAudio(projectPath, translatedLang, idx);
+            await window.api.generateSingleAudio(projectPath, videoId, translatedLang, idx, selectedVoice);
+        }
+    };
+
+    const handleRegenerateItem = async (index: number) => {
+        if (!projectPath || !translatedLang) return;
+        const item = translatedEntries.find(e => e.index === index);
+        if (!item) return;
+
+        setEntryStatuses(prev => {
+            const next = new Map(prev);
+            next.set(index, 'generating');
+            return next;
+        });
+
+        try {
+            const metadata = await window.api.getProjectMetadata(projectPath);
+            if (!metadata || !metadata.videoInfo) return;
+            const videoId = metadata.videoInfo.id;
+            await window.api.generateSingleAudio(projectPath, videoId, translatedLang, item.index, selectedVoice);
+        } catch (err) {
+            console.error("Regenerate failed:", err);
+            setEntryStatuses(prev => {
+                const next = new Map(prev);
+                next.set(index, 'failed');
+                return next;
+            });
         }
     };
 
     const handleRetryGenerateItem = async (index: number) => {
         if (!projectPath || !translatedLang || isGenerating) return;
         setIsGenerating(true);
-        await window.api.generateSingleAudio(projectPath, translatedLang, index);
+        const metadata = await window.api.getProjectMetadata(projectPath);
+        if (!metadata || !metadata.videoInfo) return;
+        const videoId = metadata.videoInfo.id;
+        await window.api.generateSingleAudio(projectPath, videoId, translatedLang, index, selectedVoice);
+    };
+
+    const handlePreviewVoice = async () => {
+        if (!selectedVoice || isPreviewing) return;
+        setIsPreviewing(true);
+        try {
+            const previewText = translatedLang === 'vi' ? "Đây là bản nghe thử giọng nói." : "This is a voice preview.";
+            const dataUrl = await window.api.previewEdgeVoice(selectedVoice, previewText);
+            if (dataUrl) {
+                const audio = new Audio(dataUrl);
+                audio.onended = () => setIsPreviewing(false);
+                audio.onerror = () => setIsPreviewing(false);
+                await audio.play();
+            } else {
+                setIsPreviewing(false);
+            }
+        } catch (err) {
+            console.error("Preview failed:", err);
+            setIsPreviewing(false);
+        }
     };
 
     const handlePlayAudio = async (index: number, audioPath: string) => {
@@ -239,6 +348,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
 
         if (playingIndex === index) {
             setPlayingIndex(null);
+            setIsPlayAll(false);
             return;
         }
 
@@ -247,22 +357,56 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
             const dataUrl = await window.api.readGeneratedAudio(audioPath);
             if (!dataUrl) {
                 setPlayingIndex(null);
+                setIsPlayAll(false);
                 return;
             }
             const audio = new Audio(dataUrl);
             audioRef.current = audio;
             audio.onended = () => {
+                if (isPlayAllRef.current) {
+                    const nextIndex = translatedEntries.findIndex((e, i) => i > index && entryStatuses.get(e.index) === 'done' && audioFiles.some(f => f.name.startsWith(String(e.index).padStart(4, '0'))));
+                    if (nextIndex !== -1) {
+                        const nextFile = audioFiles.find(f => f.name.startsWith(String(translatedEntries[nextIndex].index).padStart(4, '0')));
+                        if (nextFile) {
+                            handlePlayAudio(nextIndex, nextFile.path);
+                            return;
+                        }
+                    }
+                    setIsPlayAll(false);
+                }
                 setPlayingIndex(null);
                 audioRef.current = null;
             };
             audio.onerror = () => {
+                setIsPlayAll(false);
                 setPlayingIndex(null);
                 audioRef.current = null;
             };
             await audio.play();
         } catch {
+            setIsPlayAll(false);
             setPlayingIndex(null);
             audioRef.current = null;
+        }
+    };
+
+    const handlePlayAll = () => {
+        if (isPlayAll) {
+            setIsPlayAll(false);
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
+            setPlayingIndex(null);
+        } else {
+            const firstIndex = translatedEntries.findIndex(e => entryStatuses.get(e.index) === 'done' && audioFiles.some(f => f.name.startsWith(String(e.index).padStart(4, '0'))));
+            if (firstIndex !== -1) {
+                setIsPlayAll(true);
+                const firstFile = audioFiles.find(f => f.name.startsWith(String(translatedEntries[firstIndex].index).padStart(4, '0')));
+                if (firstFile) {
+                    handlePlayAudio(firstIndex, firstFile.path);
+                }
+            }
         }
     };
 
@@ -304,7 +448,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                         <div>
                             <h2 className="text-lg font-bold">Tạo audio - Edge TTS</h2>
                             <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                {translatedEntries.length} đoạn •
+                                {translatedEntries.length} đoạn -
                                 {(() => {
                                     const langItem = TARGET_LANGUAGES.find(l => l.code === translatedLang);
                                     return langItem ? (
@@ -316,29 +460,125 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         <span>{translatedLang}</span>
                                     );
                                 })()}
-                                {doneCount > 0 && <span className="ml-1">• {doneCount} đã tạo</span>}
-                                {failedCount > 0 && <span className="ml-1">• {failedCount} lỗi</span>}
+                                {doneCount > 0 && <span className="ml-1">- {doneCount} đã tạo</span>}
+                                {failedCount > 0 && <span className="ml-1">- {failedCount} lỗi</span>}
                             </p>
                         </div>
                     </div>
-                    <Button
-                        size="sm"
-                        className="gap-2"
-                        onClick={handleStartGenerate}
-                        disabled={isGenerating}
-                    >
-                        {isGenerating ? (
-                            <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                Đang tạo...
-                            </>
-                        ) : (
-                            <>
-                                <Music className="w-3.5 h-3.5" />
-                                {hasAnyAudio ? "Tạo lại" : "Bắt đầu tạo"}
-                            </>
-                        )}
-                    </Button>
+                </div>
+
+                {/* Voice Selection & Preview */}
+                <div className="bg-muted/30 border rounded-xl p-4 flex flex-col gap-4 shrink-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Settings className="w-4 h-4 text-primary" />
+                        <h3 className="text-sm font-semibold text-foreground">Cấu hình giọng đọc</h3>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 items-end">
+                        <div className="flex-1 space-y-1.5 w-full">
+                            <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Chọn giọng đọc</label>
+                            <Select
+                                value={selectedVoice}
+                                onValueChange={(val) => {
+                                    setSelectedVoice(val);
+                                    localStorage.setItem(`voice_${translatedLang}`, val);
+                                }}
+                                disabled={isGenerating}
+                            >
+                                <SelectTrigger className="w-full bg-background border-muted-foreground/20">
+                                    <SelectValue placeholder="Đang tải danh sách giọng đọc..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {voices.length === 0 ? (
+                                        <SelectItem value="loading" disabled>
+                                            Đang tải giọng đọc...
+                                        </SelectItem>
+                                    ) : (
+                                        voices.map((v) => (
+                                            <SelectItem key={v.ShortName} value={v.ShortName}>
+                                                <div className="flex flex-col items-start gap-0.5">
+                                                    <span className="font-medium text-sm">{v.FriendlyName.split(' - ')[1] || v.ShortName}</span>
+                                                    <span className="text-[10px] text-muted-foreground leading-none">
+                                                        {v.Gender} - {v.Locale}
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="w-[100px] shrink-0 space-y-1.5">
+                            <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Số luồng</label>
+                            <Select
+                                value={concurrency.toString()}
+                                onValueChange={(val) => {
+                                    setConcurrency(parseInt(val, 10));
+                                    localStorage.setItem('audio_concurrency', val);
+                                }}
+                                disabled={isGenerating}
+                            >
+                                <SelectTrigger className="w-full bg-background border-muted-foreground/20">
+                                    <SelectValue placeholder="1" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {[1, 2, 3, 5, 8, 10, 15, 20].map(n => (
+                                        <SelectItem key={n} value={n.toString()}>{n}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <Button
+                                variant="outline"
+                                className={`flex-1 sm:flex-initial gap-2 border-muted-foreground/20 ${isPlayAll ? 'bg-primary/10 text-primary border-primary/50' : ''}`}
+                                onClick={handlePlayAll}
+                                disabled={isGenerating || !hasAnyAudio}
+                            >
+                                {isPlayAll ? (
+                                    <Square className="w-4 h-4" />
+                                ) : (
+                                    <Play className="w-4 h-4" />
+                                )}
+                                {isPlayAll ? "Dừng phát" : "Phát tất cả"}
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                className="flex-1 sm:flex-initial gap-2 border-muted-foreground/20"
+                                onClick={handlePreviewVoice}
+                                disabled={!selectedVoice || isPreviewing || isGenerating}
+                            >
+                                {isPreviewing ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Volume2 className="w-4 h-4" />
+                                )}
+                                Nghe thử
+                            </Button>
+
+                            <Button
+                                className="flex-1 sm:flex-initial gap-2 relative overflow-hidden group min-w-[140px]"
+                                onClick={handleStartGenerate}
+                                disabled={isGenerating || !selectedVoice}
+                            >
+                                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/10 via-white/20 to-primary/10 -translate-x-full group-hover:animate-shimmer" />
+                                {isGenerating ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Đang tạo...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Music className="w-4 h-4" />
+                                        {hasAnyAudio ? "Tạo lại tất cả" : "Bắt đầu tạo"}
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Progress bar during generation */}
@@ -367,8 +607,19 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                     key={entry.index}
                                     className={`flex items-center gap-3 p-3 transition-colors group ${status === 'generating'
                                         ? 'bg-primary/5 border-l-2 border-l-primary'
-                                        : 'hover:bg-muted/30'
+                                        : status === 'done' && audioFile
+                                            ? 'hover:bg-muted/30 cursor-pointer'
+                                            : status === 'failed'
+                                                ? 'hover:bg-destructive/5 cursor-pointer'
+                                                : 'hover:bg-muted/30'
                                         }`}
+                                    onClick={() => {
+                                        if (status === 'done' && audioFile) {
+                                            handlePlayAudio(i, audioFile.path);
+                                        } else if (status === 'failed' && !isGenerating) {
+                                            handleRetryGenerateItem(entry.index);
+                                        }
+                                    }}
                                 >
                                     {/* Play button / status icon */}
                                     <div className="shrink-0 w-8 h-8 flex items-center justify-center">

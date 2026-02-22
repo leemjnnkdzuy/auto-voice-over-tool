@@ -21,6 +21,7 @@ export const getYtDlpPath = () => path.join(YT_DLP_DIR, 'yt-dlp.exe');
 export const getFfmpegPath = () => path.join(FFMPEG_DIR, 'ffmpeg.exe');
 export const getHandBrakePath = () => path.join(HANDBRAKE_DIR, 'HandBrakeCLI.exe');
 export const getWhisperModelPath = () => path.join(MODELS_DIR, 'ggml-base.bin');
+export const getWhisperTurboModelPath = () => path.join(MODELS_DIR, 'ggml-large-v3-turbo.bin');
 
 export const getWhisperPath = (engine: 'cpu' | 'gpu' = 'cpu') => {
     if (engine === 'gpu') {
@@ -34,6 +35,7 @@ const FFMPEG_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/late
 const WHISPER_CPU_URL = 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-bin-x64.zip';
 const WHISPER_GPU_URL = 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-cublas-12.4.0-bin-x64.zip';
 const WHISPER_MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
+const WHISPER_TURBO_MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin';
 const HANDBRAKE_URL = 'https://github.com/HandBrake/HandBrake/releases/download/1.10.2/HandBrakeCLI-1.10.2-win-x86_64.zip';
 
 interface SetupProgress {
@@ -116,7 +118,7 @@ const downloadFile = (url: string, destPath: string, onProgress?: (percent: numb
 /**
  * Extract a specific exe from a downloaded zip using PowerShell
  */
-const extractExeFromZip = async (zipPath: string, destDir: string, exeName: string): Promise<boolean> => {
+const extractExeFromZip = async (zipPath: string, destDir: string, exeName: string, keepZip: boolean = false): Promise<boolean> => {
     return new Promise((resolve) => {
         try {
             const psCommand = `
@@ -154,8 +156,8 @@ const extractExeFromZip = async (zipPath: string, destDir: string, exeName: stri
             proc.stderr.on('data', (data) => { console.error('Extract stderr:', data.toString()); });
 
             proc.on('close', () => {
-                // Clean up zip
-                if (fs.existsSync(zipPath)) {
+                // Clean up zip only if requested
+                if (!keepZip && fs.existsSync(zipPath)) {
                     fs.unlinkSync(zipPath);
                 }
                 resolve(output.includes('SUCCESS'));
@@ -177,16 +179,19 @@ const extractExeFromZip = async (zipPath: string, destDir: string, exeName: stri
  */
 export const isYtDlpReady = (): boolean => fs.existsSync(getYtDlpPath());
 export const isFfmpegReady = (): boolean => fs.existsSync(getFfmpegPath());
+export const isFfprobeReady = (): boolean => fs.existsSync(path.join(FFMPEG_DIR, 'ffprobe.exe'));
 export const isHandBrakeReady = (): boolean => fs.existsSync(getHandBrakePath());
 export const isWhisperReady = (): boolean => fs.existsSync(getWhisperPath('cpu'));
 export const isWhisperModelReady = (): boolean => fs.existsSync(getWhisperModelPath());
+export const isWhisperTurboModelReady = (): boolean => fs.existsSync(getWhisperTurboModelPath());
 
 export const isWhisperEngineReady = (engine: 'cpu' | 'gpu'): boolean => {
     return fs.existsSync(getWhisperPath(engine));
 };
 
 export const isEnvironmentReady = (): boolean => {
-    return isYtDlpReady() && isFfmpegReady() && isHandBrakeReady() && isWhisperEngineReady('cpu') && isWhisperEngineReady('gpu') && isWhisperModelReady();
+    // Whisper GPU is now optional for readiness, but CPU, ffmpeg, ffprobe, etc. are required
+    return isYtDlpReady() && isFfmpegReady() && isFfprobeReady() && isHandBrakeReady() && isWhisperEngineReady('cpu') && isWhisperModelReady();
 };
 
 /**
@@ -196,7 +201,10 @@ export const downloadWhisperEngine = async (
     engine: 'cpu' | 'gpu',
     onProgress: ProgressCallback
 ): Promise<boolean> => {
-    if (isWhisperEngineReady(engine)) return true;
+    if (isWhisperEngineReady(engine)) {
+        onProgress({ status: 'ready', progress: 100, detail: `${engine === 'gpu' ? 'Whisper GPU' : 'Whisper CPU'} đã sẵn sàng!` });
+        return true;
+    }
 
     const url = engine === 'gpu' ? WHISPER_GPU_URL : WHISPER_CPU_URL;
     const destDir = engine === 'gpu' ? WHISPER_GPU_DIR : WHISPER_CPU_DIR;
@@ -204,12 +212,17 @@ export const downloadWhisperEngine = async (
 
     ensureDir(destDir);
 
-    onProgress({ status: 'downloading', progress: 0, detail: `Đang tải ${label}...` });
     const zipPath = path.join(destDir, 'whisper.zip');
 
-    await downloadFile(url, zipPath, (percent) => {
-        onProgress({ status: 'downloading', progress: percent * 0.8, detail: `Đang tải ${label}... ${percent}%` });
-    });
+    // Check if zip already exists
+    if (fs.existsSync(zipPath)) {
+        onProgress({ status: 'extracting', progress: 50, detail: `Tìm thấy ${label} (zip), đang giải nén...` });
+    } else {
+        onProgress({ status: 'downloading', progress: 0, detail: `Đang tải ${label}...` });
+        await downloadFile(url, zipPath, (percent) => {
+            onProgress({ status: 'downloading', progress: percent * 0.8, detail: `Đang tải ${label}... ${percent}%` });
+        });
+    }
 
     onProgress({ status: 'extracting', progress: 80, detail: `Đang giải nén ${label}...` });
     const extracted = await extractExeFromZip(zipPath, destDir, 'whisper-cli.exe');
@@ -255,31 +268,43 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
             onProgress({ status: 'checking', progress: 15, detail: 'yt-dlp đã sẵn sàng.' });
         }
 
-        // Step 2: ffmpeg
-        if (!isFfmpegReady()) {
-            onProgress({ status: 'downloading', progress: 15, detail: 'Đang tải ffmpeg...' });
+        // Step 2: ffmpeg & ffprobe
+        if (!isFfmpegReady() || !isFfprobeReady()) {
             const zipPath = path.join(FFMPEG_DIR, 'ffmpeg.zip');
-            await downloadFile(FFMPEG_URL, zipPath, (percent) => {
-                onProgress({ status: 'downloading', progress: 15 + percent * 0.10, detail: `Đang tải ffmpeg... ${percent}%` });
-            });
+            if (fs.existsSync(zipPath)) {
+                onProgress({ status: 'extracting', progress: 15, detail: 'Tìm thấy ffmpeg (zip), đang giải nén...' });
+            } else {
+                onProgress({ status: 'downloading', progress: 15, detail: 'Đang tải ffmpeg...' });
+                await downloadFile(FFMPEG_URL, zipPath, (percent) => {
+                    onProgress({ status: 'downloading', progress: 15 + percent * 0.10, detail: `Đang tải ffmpeg... ${percent}%` });
+                });
+            }
             onProgress({ status: 'extracting', progress: 25, detail: 'Đang giải nén ffmpeg...' });
-            const extracted = await extractExeFromZip(zipPath, FFMPEG_DIR, 'ffmpeg.exe');
+            const extracted = await extractExeFromZip(zipPath, FFMPEG_DIR, 'ffmpeg.exe', true);
             if (!extracted) {
                 onProgress({ status: 'error', progress: 25, detail: 'Không thể giải nén ffmpeg!' });
                 return false;
             }
-            onProgress({ status: 'downloading', progress: 27, detail: 'ffmpeg đã sẵn sàng!' });
+
+            onProgress({ status: 'extracting', progress: 26, detail: 'Đang giải nén ffprobe...' });
+            await extractExeFromZip(zipPath, FFMPEG_DIR, 'ffprobe.exe', false);
+
+            onProgress({ status: 'downloading', progress: 27, detail: 'ffmpeg/ffprobe đã sẵn sàng!' });
         } else {
-            onProgress({ status: 'checking', progress: 27, detail: 'ffmpeg đã sẵn sàng.' });
+            onProgress({ status: 'checking', progress: 27, detail: 'ffmpeg/ffprobe đã sẵn sàng.' });
         }
 
         // Step 2.5: HandBrakeCLI
         if (!isHandBrakeReady()) {
-            onProgress({ status: 'downloading', progress: 27, detail: 'Đang tải HandBrakeCLI...' });
             const hbZipPath = path.join(HANDBRAKE_DIR, 'handbrake.zip');
-            await downloadFile(HANDBRAKE_URL, hbZipPath, (percent) => {
-                onProgress({ status: 'downloading', progress: 27 + percent * 0.09, detail: `Đang tải HandBrakeCLI... ${percent}%` });
-            });
+            if (fs.existsSync(hbZipPath)) {
+                onProgress({ status: 'extracting', progress: 27, detail: 'Tìm thấy HandBrakeCLI (zip), đang giải nén...' });
+            } else {
+                onProgress({ status: 'downloading', progress: 27, detail: 'Đang tải HandBrakeCLI...' });
+                await downloadFile(HANDBRAKE_URL, hbZipPath, (percent) => {
+                    onProgress({ status: 'downloading', progress: 27 + percent * 0.09, detail: `Đang tải HandBrakeCLI... ${percent}%` });
+                });
+            }
             onProgress({ status: 'extracting', progress: 36, detail: 'Đang giải nén HandBrakeCLI...' });
             const extracted = await extractExeFromZip(hbZipPath, HANDBRAKE_DIR, 'HandBrakeCLI.exe');
             if (!extracted) {
@@ -293,11 +318,15 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
 
         // Step 3: whisper.cpp (CPU)
         if (!isWhisperEngineReady('cpu')) {
-            onProgress({ status: 'downloading', progress: 38, detail: 'Đang tải Whisper CPU...' });
             const whisperZipPath = path.join(WHISPER_CPU_DIR, 'whisper-cpu.zip');
-            await downloadFile(WHISPER_CPU_URL, whisperZipPath, (percent) => {
-                onProgress({ status: 'downloading', progress: 38 + percent * 0.08, detail: `Đang tải Whisper CPU... ${percent}%` });
-            });
+            if (fs.existsSync(whisperZipPath)) {
+                onProgress({ status: 'extracting', progress: 38, detail: 'Tìm thấy Whisper CPU (zip), đang giải nén...' });
+            } else {
+                onProgress({ status: 'downloading', progress: 38, detail: 'Đang tải Whisper CPU...' });
+                await downloadFile(WHISPER_CPU_URL, whisperZipPath, (percent) => {
+                    onProgress({ status: 'downloading', progress: 38 + percent * 0.08, detail: `Đang tải Whisper CPU... ${percent}%` });
+                });
+            }
             onProgress({ status: 'extracting', progress: 46, detail: 'Đang giải nén Whisper CPU...' });
             const extracted = await extractExeFromZip(whisperZipPath, WHISPER_CPU_DIR, 'whisper-cli.exe');
             if (!extracted) {
@@ -311,18 +340,26 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
 
         // Step 4: whisper.cpp (GPU - CUDA)
         if (!isWhisperEngineReady('gpu')) {
-            onProgress({ status: 'downloading', progress: 48, detail: 'Đang tải Whisper GPU (CUDA)...' });
             const whisperGpuZipPath = path.join(WHISPER_GPU_DIR, 'whisper-gpu.zip');
-            await downloadFile(WHISPER_GPU_URL, whisperGpuZipPath, (percent) => {
-                onProgress({ status: 'downloading', progress: 48 + percent * 0.10, detail: `Đang tải Whisper GPU... ${percent}%` });
-            });
+            if (fs.existsSync(whisperGpuZipPath)) {
+                onProgress({ status: 'extracting', progress: 48, detail: 'Tìm thấy Whisper GPU (zip), đang giải nén...' });
+            } else {
+                onProgress({ status: 'downloading', progress: 48, detail: 'Đang tải Whisper GPU (CUDA)...' });
+                await downloadFile(WHISPER_GPU_URL, whisperGpuZipPath, (percent) => {
+                    onProgress({ status: 'downloading', progress: 48 + percent * 0.10, detail: `Đang tải Whisper GPU... ${percent}%` });
+                });
+            }
             onProgress({ status: 'extracting', progress: 58, detail: 'Đang giải nén Whisper GPU...' });
             const extracted = await extractExeFromZip(whisperGpuZipPath, WHISPER_GPU_DIR, 'whisper-cli.exe');
             if (!extracted) {
-                onProgress({ status: 'error', progress: 58, detail: 'Không thể giải nén Whisper GPU!' });
-                return false;
+                // Whisper GPU is optional, so we don't return false here if it fails,
+                // BUT if the user is in the setup screen, they might want to know.
+                // However, since it's optional in isEnvironmentReady, let's just log and continue.
+                console.warn('Whisper GPU extraction failed, but it is optional.');
+                onProgress({ status: 'checking', progress: 60, detail: 'Bỏ qua Whisper GPU (lỗi hoặc không hỗ trợ).' });
+            } else {
+                onProgress({ status: 'downloading', progress: 60, detail: 'Whisper GPU đã sẵn sàng!' });
             }
-            onProgress({ status: 'downloading', progress: 60, detail: 'Whisper GPU đã sẵn sàng!' });
         } else {
             onProgress({ status: 'checking', progress: 60, detail: 'Whisper GPU đã sẵn sàng.' });
         }

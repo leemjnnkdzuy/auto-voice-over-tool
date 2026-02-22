@@ -204,3 +204,95 @@ export const downloadVideo = async (
         }
     });
 };
+
+export const importLocalVideo = async (
+    sourcePath: string,
+    projectPath: string,
+    onProgress: (progress: { video: number, audio: number }) => void
+): Promise<any> => {
+    return new Promise(async (resolve) => {
+        try {
+            const videoDir = path.join(projectPath, 'original', 'video');
+            const audioDir = path.join(projectPath, 'original', 'audio');
+            ensureDir(videoDir);
+            ensureDir(audioDir);
+
+            const ffmpegPath = getFfmpegPath();
+            const fileName = path.basename(sourcePath);
+            const ext = path.extname(sourcePath);
+            const id = path.parse(fileName).name;
+            const targetVideoPath = path.join(videoDir, fileName);
+
+            // 1. Copy video file
+            onProgress({ video: 20, audio: 0 });
+            fs.copyFileSync(sourcePath, targetVideoPath);
+            onProgress({ video: 50, audio: 0 });
+
+            // 2. Extract audio using ffmpeg
+            const targetAudioPath = path.join(audioDir, `${id}.mp3`);
+            const audioProc = spawn(ffmpegPath, [
+                '-i', targetVideoPath,
+                '-vn',
+                '-acodec', 'libmp3lame',
+                '-y',
+                targetAudioPath
+            ]);
+
+            audioProc.on('close', async (code) => {
+                if (code !== 0) {
+                    console.error('Audio extraction failed');
+                    resolve(null);
+                    return;
+                }
+                onProgress({ video: 50, audio: 100 });
+
+                // 3. Generate thumbnail
+                const thumbnailPath = path.join(videoDir, `${id}.jpg`);
+                const thumbProc = spawn(ffmpegPath, [
+                    '-i', targetVideoPath,
+                    '-ss', '00:00:01',
+                    '-vframes', '1',
+                    '-q:v', '2',
+                    '-y',
+                    thumbnailPath
+                ]);
+
+                thumbProc.on('close', async (tCode) => {
+                    // 4. Get video duration using ffmpeg
+                    const ffprobePath = ffmpegPath.replace('ffmpeg.exe', 'ffprobe.exe');
+                    const durationProc = spawn(ffprobePath, [
+                        '-v', 'error',
+                        '-show_entries', 'format=duration',
+                        '-of', 'default=noprint_wrappers=1:nokey=1',
+                        targetVideoPath
+                    ]);
+
+                    let durationOutput = '';
+                    durationProc.stdout.on('data', (data) => { durationOutput += data.toString(); });
+
+                    durationProc.on('close', () => {
+                        const duration = parseFloat(durationOutput.trim()) || 0;
+                        onProgress({ video: 100, audio: 100 });
+
+                        resolve({
+                            title: id,
+                            thumbnail: `data:image/jpeg;base64,${fs.readFileSync(thumbnailPath).toString('base64')}`,
+                            duration: Math.floor(duration),
+                            id: id,
+                            url: sourcePath,
+                            author: 'Local File',
+                            description: `File: ${fileName}`,
+                        });
+
+                        // Clean up temporary thumbnail file after reading if needed, 
+                        // but actually we might want to keep it in the project folder
+                    });
+                });
+            });
+
+        } catch (error) {
+            console.error("Local import failed:", error);
+            resolve(null);
+        }
+    });
+};

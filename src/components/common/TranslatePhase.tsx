@@ -12,8 +12,10 @@ import {
     ArrowRight,
     ChevronDown,
     Check,
+    RotateCcw,
+    Download,
 } from "lucide-react";
-import { parseSrt, stringifySrt, MINECRAFT_GLOSSARY, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
+import { parseSrt, stringifySrt, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
 import { useProcessContext } from "@/stores/ProcessStore";
 import {
     DropdownMenu,
@@ -21,6 +23,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import ReactCountryFlag from "react-country-flag";
 
 export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
@@ -33,6 +36,15 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
     const [hasApiKey, setHasApiKey] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
     const [progress, setProgress] = useState({ current: 0, total: 0, percent: 0 });
+    const [translatingIndices, setTranslatingIndices] = useState<Set<number>>(new Set());
+    const [translatedIndices, setTranslatedIndices] = useState<Set<number>>(new Set());
+    const [translatePrompt, setTranslatePrompt] = useState(() => {
+        return localStorage.getItem("translatePrompt") || "";
+    });
+
+    useEffect(() => {
+        localStorage.setItem("translatePrompt", translatePrompt);
+    }, [translatePrompt]);
 
     const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
 
@@ -52,7 +64,7 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
             setPhase("idle");
 
             // Check API key
-            const apiKey = await window.api.getApiKey("deepseek");
+            const apiKey = await window.api.getApiKey("openai");
             setHasApiKey(!!apiKey);
 
             // Get project info
@@ -62,35 +74,64 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
                 setProjectPath(project.path);
 
                 // Check existing SRT
-                const existing = await window.api.getExistingSrt(project.path);
-                if (existing) {
-                    const entries = parseSrt(existing.srtContent);
-                    setSrtEntries(entries);
+                const metadata = await window.api.getProjectMetadata(project.path);
+                if (metadata && metadata.videoInfo) {
+                    const videoId = metadata.videoInfo.id;
+                    const existing = await window.api.getExistingSrt(project.path, videoId);
+                    if (existing) {
+                        const entries = parseSrt(existing.srtContent);
+                        setSrtEntries(entries);
 
-                    // Check if translation exists for current lang
-                    const translatedContent = await window.api.getTranslatedSrt(project.path, selectedLang);
-                    if (translatedContent) {
-                        setTranslatedEntries(parseSrt(translatedContent));
-                        setPhase("done");
+                        // Check if translation exists for current lang
+                        const translatedContent = await window.api.getTranslatedSrt(project.path, videoId, selectedLang);
+                        if (translatedContent) {
+                            setTranslatedEntries(parseSrt(translatedContent));
+                            setPhase("done");
+                        } else {
+                            setPhase("idle");
+                        }
                     } else {
-                        setPhase("idle");
+                        setPhase("no-srt");
                     }
-                } else {
-                    setPhase("no-srt");
                 }
             }
-            setIsChecking(false);
+            setIsChecking(false); // This line was misplaced, moved inside the init function.
         };
 
         init();
-    }, [id]);
+    }, [id, selectedLang]); // Added selectedLang to dependencies as it's used in init.
+
+    const handleExport = async (format: "srt" | "txt") => {
+        if (!translatedEntries.length) return;
+
+        let content = "";
+        let extension = "";
+        let defaultName = `subtitles_${selectedLang}_${Date.now()}`;
+
+        if (format === "srt") {
+            content = stringifySrt(translatedEntries);
+            extension = "srt";
+        } else {
+            content = translatedEntries.map(e => e.text).join("\n");
+            extension = "txt";
+        }
+
+        const success = await window.api.exportSubtitle(content, `${defaultName}.${extension}`, [extension]);
+        if (success) {
+            // Optional: show a toast or success message
+        }
+    };
 
     // Check translation when language changes
     useEffect(() => {
         const checkTranslation = async () => {
             if (!projectPath || phase === "translating" || phase === "no-srt") return;
 
-            const translatedContent = await window.api.getTranslatedSrt(projectPath, selectedLang);
+            const metadata = await window.api.getProjectMetadata(projectPath);
+            if (!metadata || !metadata.videoInfo) return;
+            const videoId = metadata.videoInfo.id;
+
+            const translatedContent = await window.api.getTranslatedSrt(projectPath, videoId, selectedLang);
             if (translatedContent) {
                 setTranslatedEntries(parseSrt(translatedContent));
                 setPhase("done");
@@ -120,15 +161,34 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
         setPhase("translating");
         setProgress({ current: 0, total: srtEntries.length, percent: 0 });
 
+        // Mark all entries as pending
+        const allIndices = new Set(srtEntries.map(e => e.index));
+        setTranslatingIndices(allIndices);
+        setTranslatedIndices(new Set());
+        // Initialize translated entries with original text as placeholder
+        setTranslatedEntries(srtEntries.map(e => ({ ...e, text: "" })));
+
         try {
-            const apiKey = await window.api.getApiKey("deepseek");
+            const apiKey = await window.api.getApiKey("openai");
+            const baseUrl = await window.api.getApiKey("openai_url") || "https://api.openai.com/v1";
+            const modelName = await window.api.getApiKey("openai_model") || "grok-3";
+            const globalPrompt = await window.api.getApiKey("openai_prompt") || "";
             const langName = TARGET_LANGUAGES.find(l => l.code === selectedLang)?.name || selectedLang;
 
-            // Configuration
+            let finalPrompt = "";
+            if (globalPrompt && translatePrompt) {
+                finalPrompt = `${globalPrompt}\n\nAdditional Translation Instructions: ${translatePrompt}`;
+            } else if (translatePrompt) {
+                finalPrompt = translatePrompt;
+            } else {
+                finalPrompt = globalPrompt;
+            }
+
+            localStorage.setItem("translatePrompt", translatePrompt);
+
             const BATCH_SIZE = 20;
             const CONCURRENCY = 5;
 
-            // Prepare batches
             const batches: SrtEntry[][] = [];
             for (let i = 0; i < srtEntries.length; i += BATCH_SIZE) {
                 batches.push(srtEntries.slice(i, i + BATCH_SIZE));
@@ -137,41 +197,30 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
             let completedCount = 0;
             const translatedMap = new Map<number, string>();
 
-            // Worker function
             const processBatch = async (batch: SrtEntry[]) => {
                 const textsToTranslate = batch.map(e => e.text).join("\n---\n");
 
                 try {
-                    const response = await fetch("https://api.deepseek.com/chat/completions", {
+                    const response = await fetch(`${baseUrl}/chat/completions`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
                             "Authorization": `Bearer ${apiKey}`,
                         },
                         body: JSON.stringify({
-                            model: "deepseek-chat",
+                            model: modelName,
                             messages: [
                                 {
                                     role: "system",
-                                    content: `You are a professional Minecraft subtitle translator. Translate subtitle segments from English to ${langName}.
-
-IMPORTANT RULES:
-- Use official Minecraft terminology for the target language
-- Keep translations natural, conversational, and suitable for voice-over dubbing
-- Each segment is separated by "---"
-- Return ONLY the translated segments separated by "---", nothing else
-- Preserve the same number of segments
-- Keep proper nouns (player names, server names) unchanged
-- Translations should be concise and match subtitle timing
-
-${MINECRAFT_GLOSSARY(langName)}`
+                                    content: finalPrompt ?
+                                        `${finalPrompt}\n\nIMPORTANT RULES:\n- Translate to ${langName}\n- Keep translations natural, conversational, and suitable for voice-over dubbing\n- Each segment is separated by "---"\n- Return ONLY the translated segments separated by "---", nothing else\n- Preserve the same number of segments\n- Keep proper nouns unchanged if appropriate\n- Translations should be concise and match subtitle timing`
+                                        :
+                                        `You are a professional subtitle translator. Translate subtitle segments from English to ${langName}.\n\nIMPORTANT RULES:\n- Keep translations natural, conversational, and suitable for voice-over dubbing\n- Each segment is separated by "---"\n- Return ONLY the translated segments separated by "---", nothing else\n- Preserve the same number of segments\n- Keep proper nouns (names, places etc.) unchanged if appropriate\n- Translations should be concise and match subtitle timing`
                                 },
-                                {
-                                    role: "user",
-                                    content: textsToTranslate,
-                                },
+                                { role: "user", content: textsToTranslate },
                             ],
                             temperature: 0.3,
+                            stream: false
                         }),
                     });
 
@@ -190,6 +239,26 @@ ${MINECRAFT_GLOSSARY(langName)}`
                     batch.forEach(entry => translatedMap.set(entry.index, entry.text));
                 } finally {
                     completedCount += batch.length;
+
+                    // Update translated entries with what we have so far
+                    const partial: SrtEntry[] = srtEntries.map(entry => ({
+                        ...entry,
+                        text: translatedMap.get(entry.index) || "",
+                    }));
+                    setTranslatedEntries(partial);
+
+                    // Update indices state
+                    setTranslatingIndices(prev => {
+                        const next = new Set(prev);
+                        batch.forEach(e => next.delete(e.index));
+                        return next;
+                    });
+                    setTranslatedIndices(prev => {
+                        const next = new Set(prev);
+                        batch.forEach(e => next.add(e.index));
+                        return next;
+                    });
+
                     setProgress({
                         current: completedCount,
                         total: srtEntries.length,
@@ -198,7 +267,6 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 }
             };
 
-            // Run with concurrency limit
             const queue = [...batches];
             const activeWorkers: Promise<void>[] = [];
 
@@ -210,13 +278,11 @@ ${MINECRAFT_GLOSSARY(langName)}`
                     });
                     activeWorkers.push(worker);
                 }
-
                 if (activeWorkers.length > 0) {
                     await Promise.race(activeWorkers);
                 }
             }
 
-            // Reassemble in order
             const finalTranslated: SrtEntry[] = srtEntries.map(entry => ({
                 ...entry,
                 text: translatedMap.get(entry.index) || entry.text
@@ -224,9 +290,14 @@ ${MINECRAFT_GLOSSARY(langName)}`
 
             // Save to file
             const srtContent = stringifySrt(finalTranslated);
-            await window.api.saveTranslatedSrt(projectPath, selectedLang, srtContent);
+            const metadata = await window.api.getProjectMetadata(projectPath);
+            if (!metadata || !metadata.videoInfo) return;
+            const videoId = metadata.videoInfo.id;
+
+            await window.api.saveTranslatedSrt(projectPath, videoId, selectedLang, srtContent);
 
             setTranslatedEntries(finalTranslated);
+            setTranslatingIndices(new Set());
             setPhase("done");
 
             if (isAutoProcessRef.current && onComplete) {
@@ -234,6 +305,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
             }
         } catch (error) {
             console.error("Translation failed:", error);
+            setTranslatingIndices(new Set());
             setPhase("idle");
         }
     };
@@ -275,7 +347,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
                     {!hasApiKey && (
                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-center">
                             <p className="text-sm text-amber-600 font-medium">
-                                ⚠️ Chưa có API key DeepSeek
+                                ⚠️ Chưa có API key OpenAI
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
                                 Vui lòng thêm API key ở trang chủ để sử dụng tính năng dịch.
@@ -325,13 +397,33 @@ ${MINECRAFT_GLOSSARY(langName)}`
                         </div>
                     </div>
 
+                    {/* Custom Prompt Configuration */}
+                    <div className="bg-muted/30 border rounded-xl p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-primary" />
+                                <span className="text-sm font-semibold">Cấu hình dịch (Tuỳ chọn)</span>
+                            </div>
+                        </div>
+                        <Textarea
+                            placeholder="Ghi chú thêm cho AI (vd: dịch sang phong cách cổ trang, xưng hô anh/em...)"
+                            value={translatePrompt}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                                setTranslatePrompt(e.target.value);
+                                localStorage.setItem("translatePrompt", e.target.value);
+                            }}
+                            className="w-full min-h-[60px] text-sm resize-none"
+                        />
+                    </div>
+
                     {/* Start Button */}
                     <Button
-                        className="w-full gap-2"
+                        className="w-full gap-2 relative overflow-hidden group"
                         size="lg"
                         onClick={handleStartTranslate}
                         disabled={!hasApiKey}
                     >
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/10 via-white/20 to-primary/10 -translate-x-full group-hover:animate-shimmer" />
                         <Play className="w-4 h-4" />
                         Bắt đầu dịch
                         <ArrowRight className="w-4 h-4" />
@@ -339,66 +431,129 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 </div>
             )}
 
-            {/* TRANSLATING STATE */}
-            {phase === "translating" && (
-                <div className="w-full max-w-lg space-y-6 animate-in fade-in duration-300">
-                    <div className="text-center space-y-2">
-                        <h2 className="text-xl font-bold">Đang dịch...</h2>
-                        <p className="text-sm text-muted-foreground">
-                            {progress.current} / {progress.total} đoạn ({progress.percent}%)
-                        </p>
-                    </div>
-                    <Progress value={progress.percent} className="w-full" />
-                </div>
-            )}
-
-            {/* DONE STATE */}
-            {phase === "done" && translatedEntries.length > 0 && (
-                <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
+            {/* TRANSLATING + DONE STATE — combined streaming view */}
+            {(phase === "translating" || phase === "done") && (srtEntries.length > 0) && (
+                <div className="w-full h-full flex flex-col gap-3 animate-in fade-in duration-300 overflow-hidden">
                     {/* Header */}
                     <div className="flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            {phase === "translating" ? (
+                                <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                            ) : (
+                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            )}
                             <div>
-                                <h2 className="text-lg font-bold">Dịch xong!</h2>
+                                <h2 className="text-lg font-bold">
+                                    {phase === "translating" ? "Đang dịch..." : "Dịch xong!"}
+                                </h2>
                                 <p className="text-xs text-muted-foreground">
-                                    {translatedEntries.length} đoạn đã được dịch sang {TARGET_LANGUAGES.find(l => l.code === selectedLang)?.name}
-                                    <br />
-                                    <span className="text-primary">Đã lưu file vào thư mục translate/</span>
+                                    {phase === "translating"
+                                        ? `${progress.current} / ${progress.total} đoạn (${progress.percent}%)`
+                                        : `${translatedEntries.length} đoạn sang ${TARGET_LANGUAGES.find(l => l.code === selectedLang)?.name}`}
                                 </p>
                             </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => {
-                            setTranslatedEntries([]);
-                            setPhase("idle");
-                        }}>
-                            Dịch lại
-                        </Button>
+                        {phase === "done" && (
+                            <div className="flex items-center gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className="gap-2 relative overflow-hidden group">
+                                            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 -translate-x-full group-hover:animate-shimmer" />
+                                            <span className="relative z-10 flex items-center justify-center gap-1.5">
+                                                <Download className="w-3.5 h-3.5" />
+                                                Xuất file
+                                            </span>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem onClick={() => handleExport("srt")} className="gap-2 cursor-pointer">
+                                            <FileText className="w-4 h-4" />
+                                            SRT Subtitle (.srt)
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleExport("txt")} className="gap-2 cursor-pointer">
+                                            <FileText className="w-4 h-4" />
+                                            Plain Text (.txt)
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                    setTranslatedEntries([]);
+                                    setPhase("idle");
+                                }} className="gap-2 relative overflow-hidden group">
+                                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 -translate-x-full group-hover:animate-shimmer" />
+                                    <span className="relative z-10 flex items-center justify-center gap-1.5">
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        Dịch lại
+                                    </span>
+                                </Button>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Side by side comparison */}
+                    {/* Progress bar — only while translating */}
+                    {phase === "translating" && (
+                        <div className="shrink-0">
+                            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-primary rounded-full transition-all duration-300"
+                                    style={{ width: `${progress.percent}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Side-by-side comparison with streaming */}
                     <div className="flex-1 overflow-y-auto border rounded-xl">
                         <div className="divide-y">
-                            {translatedEntries.map((entry, i) => (
-                                <div key={entry.index} className="grid grid-cols-2 divide-x hover:bg-muted/30 transition-colors">
-                                    <div className="p-3">
-                                        <p className="text-xs text-muted-foreground font-mono mb-1">
-                                            #{entry.index} • {srtEntries[i]?.startTime}
-                                        </p>
-                                        <p className="text-sm">{srtEntries[i]?.text}</p>
+                            {srtEntries.map((srcEntry, i) => {
+                                const isEntryTranslating = translatingIndices.has(srcEntry.index);
+                                const isEntryDone = translatedIndices.has(srcEntry.index);
+                                const translatedEntry = translatedEntries[i];
+                                const translatedText = translatedEntry?.text || "";
+                                return (
+                                    <div
+                                        key={srcEntry.index}
+                                        className={`grid grid-cols-2 divide-x transition-colors ${isEntryTranslating
+                                                ? "bg-primary/5 border-l-2 border-l-primary/40"
+                                                : "hover:bg-muted/30"
+                                            }`}
+                                    >
+                                        {/* Original */}
+                                        <div className="p-3">
+                                            <p className="text-xs text-muted-foreground font-mono mb-1">
+                                                #{srcEntry.index} • {srcEntry.startTime}
+                                            </p>
+                                            <p className="text-sm">{srcEntry.text}</p>
+                                        </div>
+                                        {/* Translation */}
+                                        <div className="p-3">
+                                            <p className="text-xs font-mono mb-1 flex items-center gap-1.5">
+                                                {isEntryTranslating ? (
+                                                    <span className="flex items-center gap-1 text-primary/70">
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                        Đang dịch...
+                                                    </span>
+                                                ) : isEntryDone || phase === "done" ? (
+                                                    <span className="flex items-center gap-1 text-primary">
+                                                        <ReactCountryFlag countryCode={TARGET_LANGUAGES.find(l => l.code === selectedLang)?.flag || ""} svg />
+                                                        Bản dịch
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground/40">Chờ dịch...</span>
+                                                )}
+                                            </p>
+                                            <p className={`text-sm transition-opacity ${isEntryTranslating ? "opacity-30" : "opacity-100"}`}>
+                                                {translatedText}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="p-3">
-                                        <p className="text-xs text-primary font-mono mb-1 flex items-center gap-2">
-                                            <ReactCountryFlag countryCode={TARGET_LANGUAGES.find(l => l.code === selectedLang)?.flag || ""} svg /> Bản dịch
-                                        </p>
-                                        <p className="text-sm">{entry.text}</p>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
             )}
+
         </div>
     );
 };

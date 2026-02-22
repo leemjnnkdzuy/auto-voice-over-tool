@@ -22,6 +22,35 @@ export const VOICE_MAP: Record<string, VoiceConfig> = {
     th: { voice: 'th-TH-PremwadeeNeural', label: '🇹🇭 ภาษาไทย - Premwadee' },
 };
 
+export interface EdgeVoice {
+    Name: string;
+    ShortName: string;
+    Gender: string;
+    Locale: string;
+    SuggestedCodec: string;
+    FriendlyName: string;
+    Status: string;
+    VoiceTag: {
+        ContentCategories: string[];
+        VoicePersonalities: string[];
+    };
+}
+
+export const getEdgeVoices = async (): Promise<EdgeVoice[]> => {
+    try {
+        const tts = new MsEdgeTTS();
+        const voices = await tts.getVoices();
+        return voices as EdgeVoice[];
+    } catch (err) {
+        console.error("Failed to get Edge TTS voices:", err);
+        return [];
+    }
+};
+
+export const previewEdgeVoice = async (voiceName: string, text: string, outputPath: string): Promise<boolean> => {
+    return generateAudioSegment(text, voiceName, outputPath);
+};
+
 export interface TTSProgress {
     status: 'generating' | 'done' | 'error';
     progress: number;
@@ -110,50 +139,73 @@ export const generateAllAudio = async (
     langCode: string,
     outputDir: string,
     onProgress: (p: TTSProgress) => void,
-    _concurrency: number = 1
+    concurrency: number = 1,
+    customVoiceName?: string
 ): Promise<string[]> => {
     ensureDir(outputDir);
 
-    const voice = VOICE_MAP[langCode];
-    if (!voice) {
-        onProgress({ status: 'error', progress: 0, detail: `Không hỗ trợ ngôn ngữ: ${langCode}` });
+    const voiceName = customVoiceName || (VOICE_MAP[langCode] ? VOICE_MAP[langCode].voice : null);
+    if (!voiceName) {
+        onProgress({ status: 'error', progress: 0, detail: `Không hỗ trợ ngôn ngữ/giọng đọc: ${langCode}` });
         return [];
     }
 
     const results: string[] = new Array(entries.length).fill('');
 
     for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i];
+        // Just queue them up
+    }
+
+    let completedCount = 0;
+    const queue = entries.map((entry, idx) => ({ entry, idx }));
+    const activeWorkers: Promise<void>[] = [];
+
+    const processItem = async (entry: { index: number; text: string }, i: number): Promise<void> => {
         const fileName = `${String(entry.index).padStart(4, '0')}.mp3`;
         const outputPath = path.join(outputDir, fileName);
 
         // Notify: starting this entry
         onProgress({
             status: 'generating',
-            progress: Math.round((i / entries.length) * 100),
-            detail: `Đang tạo audio... ${i + 1}/${entries.length}`,
-            current: i + 1,
+            progress: Math.round((completedCount / entries.length) * 100),
+            detail: `Đang tạo audio... ${completedCount + 1}/${entries.length}`,
+            current: completedCount + 1,
             total: entries.length,
             entryIndex: entry.index,
             entryStatus: 'start',
         });
 
-        const success = await generateAudioSegment(entry.text, voice.voice, outputPath);
+        const success = await generateAudioSegment(entry.text, voiceName, outputPath);
 
         if (success) {
             results[i] = outputPath;
         }
 
+        completedCount++;
+
         // Notify: this entry done/failed
         onProgress({
             status: 'generating',
-            progress: Math.round(((i + 1) / entries.length) * 100),
-            detail: `Đang tạo audio... ${i + 1}/${entries.length}`,
-            current: i + 1,
+            progress: Math.round((completedCount / entries.length) * 100),
+            detail: `Đang tạo audio... ${completedCount}/${entries.length}`,
+            current: completedCount,
             total: entries.length,
             entryIndex: entry.index,
             entryStatus: success ? 'done' : 'failed',
         });
+    };
+
+    while (queue.length > 0 || activeWorkers.length > 0) {
+        while (queue.length > 0 && activeWorkers.length < concurrency) {
+            const item = queue.shift()!;
+            const worker = processItem(item.entry, item.idx).then(() => {
+                activeWorkers.splice(activeWorkers.indexOf(worker), 1);
+            });
+            activeWorkers.push(worker);
+        }
+        if (activeWorkers.length > 0) {
+            await Promise.race(activeWorkers);
+        }
     }
 
     return results;

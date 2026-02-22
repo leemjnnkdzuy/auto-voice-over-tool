@@ -1,6 +1,6 @@
-import {useRef, useState} from "react";
-import {Play} from "lucide-react";
-import {Button} from "@/components/ui/button";
+import { useRef, useState } from "react";
+import { Play } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface VideoPlayerProps {
 	src: string;
@@ -17,7 +17,8 @@ export const VideoPlayer = ({
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const [isPlaying, setIsPlaying] = useState(false);
 
-	const videoUrl = `http://127.0.0.1:9999/video?path=${encodeURIComponent(src)}`;
+	const [cacheBuster] = useState(() => Date.now());
+	const videoUrl = `http://127.0.0.1:9999/video?path=${encodeURIComponent(src)}&t=${cacheBuster}`;
 
 	const handlePlay = () => {
 		setIsPlaying(true);
@@ -47,7 +48,7 @@ export const VideoPlayer = ({
 						Phát video
 					</span>
 				</div>
-			:	null}
+				: null}
 			<video
 				ref={videoRef}
 				src={videoUrl}
@@ -58,7 +59,7 @@ export const VideoPlayer = ({
 				onTimeUpdate={handleTimeUpdate}
 				onEnded={() => setIsPlaying(false)}
 				className='w-full h-full object-contain bg-black'
-				style={{maxHeight: "100%", maxWidth: "100%"}}
+				style={{ maxHeight: "100%", maxWidth: "100%" }}
 			/>
 		</div>
 	);
