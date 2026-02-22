@@ -27,7 +27,7 @@ export const AboutPage = () => {
 
                     <div className="mt-8 flex flex-col items-center space-y-1">
                         <p className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded">
-                            Phiên bản: 1.0.0
+                            Phiên bản: 1.1.0
                         </p>
                     </div>
                 </div>
