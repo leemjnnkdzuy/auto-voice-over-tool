@@ -1,6 +1,6 @@
 <div align="center">
 
-# MC - AUTOMATED VIDEO DUBBING CREATOR
+# AVOT - AUTOMATED VIDEO DUBBING CREATOR
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](#)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC.svg?logo=typescript&logoColor=white)](#)
@@ -19,7 +19,7 @@
 
 ## 1. Công dụng và Mục đích sử dụng
 
-**MC** là một phần mềm Desktop (máy tính) ưu việt được xây dựng nhằm tự động hóa hoàn toàn quy trình xử lý video đa ngôn ngữ. 
+**AVOT** là một phần mềm Desktop (máy tính) ưu việt được xây dựng nhằm tự động hóa hoàn toàn quy trình xử lý video đa ngôn ngữ. 
 
 **Những tính năng và công dụng chính bao gồm:**
 - **Tự động hóa hoàn toàn:** Nhận link gốc (như YouTube), phần mềm tự động tải video, tách âm thanh, nhận diện giọng đọc để tạo phụ đề (SRT), dịch thuật và lồng một giọng đọc AI mới.

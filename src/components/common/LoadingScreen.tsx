@@ -1,7 +1,7 @@
 import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
-import {  CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.svg";
 
@@ -15,7 +15,8 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
     const [progress, setProgress] = useState<SetupProgress>({
         status: "checking",
         progress: 0,
-        detail: "Đang kiểm tra môi trường..."});
+        detail: "Đang kiểm tra môi trường..."
+    });
     const [error, setError] = useState(false);
 
     useEffect(() => {
@@ -45,21 +46,22 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
         setProgress({
             status: "checking",
             progress: 0,
-            detail: "Đang thử lại..."});
+            detail: "Đang thử lại..."
+        });
         window.api.setupEnvironment();
     };
 
     return (
         <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-8 p-8">
-            {}
+            { }
             <div className="text-center space-y-4 flex flex-col items-center">
-                <img src={logo} alt="MC Auto Dubbing Logo" className="w-24 h-24 object-contain animate-pulse" />
+                <img src={logo} alt="AVOT Logo" className="w-24 h-24 object-contain animate-pulse" />
                 <p className="text-muted-foreground text-sm font-medium">
                     Đang chuẩn bị môi trường làm việc...
                 </p>
             </div>
 
-            {}
+            { }
             <div className="w-full max-w-md space-y-4">
                 <Progress value={progress.progress} className="h-2" />
 

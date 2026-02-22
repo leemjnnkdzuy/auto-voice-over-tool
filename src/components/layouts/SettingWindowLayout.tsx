@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Settings, Cpu, Key, AudioLines, FileText, MonitorDot } from "lucide-react";
+import { Settings, Cpu, Key, AudioLines, FileText, MonitorDot, Info } from "lucide-react";
 import "@/stores/ModelDownloadStore";
 import {
     SidebarProvider,
@@ -13,14 +13,16 @@ import {
     SidebarMenuItem,
     SidebarMenuButton,
     SidebarInset,
+    SidebarFooter,
 } from "@/components/ui/sidebar";
 import { WhisperModelPage } from "@/windows/setting/WhisperModelPage";
 import { DeepseekKeyPage } from "@/windows/setting/DeepseekKeyPage";
 import { AssemblyaiKeyPage } from "@/windows/setting/AssemblyaiKeyPage";
 import { PromptTranslateManagerPage } from "@/windows/setting/PromptTranslateManagerPage";
 import { HardwareDetectPage } from "@/windows/setting/HardwareDetectPage";
+import { AboutPage } from "@/windows/setting/AboutPage";
 
-type SettingTab = "whisper-model" | "deepseek-key" | "assemblyai-key" | "prompt-translate" | "hardware-detect";
+type SettingTab = "whisper-model" | "deepseek-key" | "assemblyai-key" | "prompt-translate" | "hardware-detect" | "about";
 
 interface TabConfig {
     id: SettingTab;
@@ -60,6 +62,12 @@ export const TABS: TabConfig[] = [
         icon: FileText,
         component: PromptTranslateManagerPage,
     },
+    {
+        id: "about",
+        label: "Giới thiệu",
+        icon: Info,
+        component: AboutPage,
+    },
 ];
 
 interface SettingWindowLayoutProps {
@@ -86,7 +94,7 @@ export const SettingWindowLayout = ({ children }: SettingWindowLayoutProps) => {
                         <SidebarGroup>
                             <SidebarGroupLabel>Cấu hình</SidebarGroupLabel>
                             <SidebarMenu>
-                                {TABS.map((t) => (
+                                {TABS.filter(t => t.id !== "about").map((t) => (
                                     <SidebarMenuItem key={t.id}>
                                         <SidebarMenuButton
                                             isActive={activeTab === t.id}
@@ -101,6 +109,21 @@ export const SettingWindowLayout = ({ children }: SettingWindowLayoutProps) => {
                             </SidebarMenu>
                         </SidebarGroup>
                     </SidebarContent>
+
+                    <SidebarFooter>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={activeTab === "about"}
+                                    onClick={() => navigate(`/settings/about`)}
+                                    tooltip="Giới thiệu"
+                                >
+                                    <Info className="w-4 h-4" />
+                                    <span>Giới thiệu</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarFooter>
                 </Sidebar>
 
                 <SidebarInset className="min-h-0 overflow-hidden">
