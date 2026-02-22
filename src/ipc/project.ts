@@ -65,4 +65,34 @@ export const setupProjectIpc = () => {
     ipcMain.handle("save-project-metadata", (_event, projectPath, metadata) => {
         return saveProjectMetadata(projectPath, metadata);
     });
+
+    ipcMain.handle("reset-project-data", (_event, projectPath: string) => {
+        const fs = require("fs");
+        const path = require("path");
+
+        const foldersToDelete = ["original", "transcript", "translate", "audio_gene", "final"];
+
+        for (const folder of foldersToDelete) {
+            const fullPath = path.join(projectPath, folder);
+            if (fs.existsSync(fullPath)) {
+                fs.rmSync(fullPath, { recursive: true, force: true });
+            }
+        }
+
+        // Reset project.json
+        const configFile = path.join(projectPath, "project.json");
+        if (fs.existsSync(configFile)) {
+            try {
+                const meta = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+                // Keep only project name, clear everything else
+                const cleaned: any = {};
+                if (meta.name) cleaned.name = meta.name;
+                fs.writeFileSync(configFile, JSON.stringify(cleaned, null, 2), "utf-8");
+            } catch {
+                fs.writeFileSync(configFile, "{}", "utf-8");
+            }
+        }
+
+        return true;
+    });
 };

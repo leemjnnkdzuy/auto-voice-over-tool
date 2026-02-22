@@ -14,9 +14,14 @@ contextBridge.exposeInMainWorld('api', {
 
     getApiKey: (provider: string) => ipcRenderer.invoke('get-api-key', provider),
     setApiKey: (provider: string, key: string) => ipcRenderer.invoke('set-api-key', provider, key),
+    getPrompts: () => ipcRenderer.invoke('get-prompts'),
+    savePrompts: (prompts: any[]) => ipcRenderer.invoke('save-prompts', prompts),
+    getActivePromptId: () => ipcRenderer.invoke('get-active-prompt-id'),
+    setActivePromptId: (id: string) => ipcRenderer.invoke('set-active-prompt-id', id),
     createProjectFolder: (basePath: string, projectName: string) => ipcRenderer.invoke('create-project-folder', basePath, projectName),
     getProjectMetadata: (projectPath: string) => ipcRenderer.invoke('get-project-metadata', projectPath),
     saveProjectMetadata: (projectPath: string, metadata: any) => ipcRenderer.invoke('save-project-metadata', projectPath, metadata),
+    resetProjectData: (projectPath: string) => ipcRenderer.invoke('reset-project-data', projectPath),
     getVideoInfo: (url: string) => ipcRenderer.invoke('get-video-info', url),
     downloadVideo: (url: string, projectPath: string) => ipcRenderer.send('download-video', url, projectPath),
     onDownloadProgress: (callback: (progress: { video: number; audio: number }) => void) => ipcRenderer.on('download-progress', (_, progress) => callback(progress)),
@@ -24,6 +29,15 @@ contextBridge.exposeInMainWorld('api', {
     removeDownloadListeners: () => {
         ipcRenderer.removeAllListeners('download-progress');
         ipcRenderer.removeAllListeners('download-complete');
+    },
+
+    selectVideoFile: () => ipcRenderer.invoke('select-video-file'),
+    importLocalVideo: (filePath: string, projectPath: string) => ipcRenderer.send('import-local-video', filePath, projectPath),
+    onImportLocalProgress: (callback: (progress: any) => void) => ipcRenderer.on('import-local-progress', (_, progress) => callback(progress)),
+    onImportLocalComplete: (callback: (success: boolean) => void) => ipcRenderer.on('import-local-complete', (_, success) => callback(success)),
+    removeImportLocalListeners: () => {
+        ipcRenderer.removeAllListeners('import-local-progress');
+        ipcRenderer.removeAllListeners('import-local-complete');
     },
 
     checkEnvironment: () => ipcRenderer.invoke('check-environment'),
@@ -34,7 +48,7 @@ contextBridge.exposeInMainWorld('api', {
     },
 
     getExistingSrt: (projectPath: string) => ipcRenderer.invoke('get-existing-srt', projectPath),
-    transcribeAudio: (projectPath: string, engine?: string) => ipcRenderer.send('transcribe-audio', projectPath, engine),
+    transcribeAudio: (projectPath: string, engine?: string, language?: string) => ipcRenderer.send('transcribe-audio', projectPath, engine, language),
     onTranscriptProgress: (callback: (progress: any) => void) => ipcRenderer.on('transcript-progress', (_, progress) => callback(progress)),
     onTranscriptComplete: (callback: (result: any) => void) => ipcRenderer.on('transcript-complete', (_, result) => callback(result)),
     removeTranscriptListeners: () => {

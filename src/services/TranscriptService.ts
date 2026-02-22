@@ -52,7 +52,8 @@ const runWhisper = (
     outputDir: string,
     outputName: string,
     onProgress: ProgressCallback,
-    engine: 'cpu' | 'gpu' = 'cpu'
+    engine: 'cpu' | 'gpu' = 'cpu',
+    language: string = 'auto'
 ): Promise<string | null> => {
     return new Promise((resolve) => {
         const whisperPath = getWhisperPath(engine);
@@ -65,7 +66,7 @@ const runWhisper = (
             '-f', wavPath,
             '-osrt',                // Output SRT format
             '-of', outputBase,      // Output file base name (whisper adds .srt)
-            '-l', 'auto',           // Auto-detect language
+            '-l', language || 'auto',
             '--print-progress',     // Print progress
         ];
 
@@ -161,7 +162,8 @@ const findAudioFile = (projectPath: string): string | null => {
 export const transcribeAudio = async (
     projectPath: string,
     onProgress: ProgressCallback,
-    engine: TranscriptEngine = 'whisper-cpu'
+    engine: TranscriptEngine = 'whisper-cpu',
+    language: string = 'auto'
 ): Promise<{ srtPath: string; srtContent: string } | null> => {
     try {
         if (engine === 'assemblyai') {
@@ -217,7 +219,7 @@ export const transcribeAudio = async (
         onProgress({ status: 'transcribing', progress: 30, detail: 'Bắt đầu nhận dạng giọng nói...' });
 
         const videoId = path.basename(audioFile, path.extname(audioFile));
-        const srtPath = await runWhisper(wavPath, transcriptDir, videoId, onProgress, whisperVariant);
+        const srtPath = await runWhisper(wavPath, transcriptDir, videoId, onProgress, whisperVariant, language);
 
         if (!srtPath) {
             onProgress({ status: 'error', progress: 0, detail: 'Nhận dạng giọng nói thất bại!' });

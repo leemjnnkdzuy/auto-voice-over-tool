@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, Play, CheckCircle2, RotateCcw, Volume2, Pause, Cpu, Zap, Cloud, Download, Check, Sparkles, ArrowRight } from "lucide-react";
+import { Loader2, FileText, Play, CheckCircle2, RotateCcw, Volume2, Pause, Cpu, Zap, Cloud, Download, Check, Sparkles, ArrowRight, Globe } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { parseSrt, formatTimeShort, timeToSeconds, type SrtEntry } from "@/lib/utils";
+import { parseSrt, formatTimeShort, timeToSeconds, type SrtEntry, WHISPER_LANGUAGES, LANGUAGE_TO_COUNTRY } from "@/lib/utils";
+import ReactCountryFlag from "react-country-flag";
 import { useProcessContext } from "@/stores/ProcessStore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -88,6 +89,7 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
     const [models, setModels] = useState<any[]>([]);
     const [activeModel, setActiveModel] = useState<string>("");
     const [isOptimizing, setIsOptimizing] = useState(false);
+    const [selectedLanguage, setSelectedLanguage] = useState("auto");
 
     const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
 
@@ -237,7 +239,7 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
         if (!projectPath || !selectedEngine) return;
         setPhase("processing");
         setProgress({ status: "preparing", progress: 0, detail: "Đang chuẩn bị..." });
-        window.api.transcribeAudio(projectPath, selectedEngine);
+        window.api.transcribeAudio(projectPath, selectedEngine, selectedLanguage);
     };
 
     const handleRetranscript = () => {
@@ -302,18 +304,6 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
             { }
             {phase === "idle" && (
                 <div className="flex flex-col items-center gap-8 animate-in fade-in duration-300 w-full max-w-3xl">
-                    { }
-                    <div className="text-center space-y-2">
-                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                            <FileText className="w-8 h-8 text-primary" />
-                        </div>
-                        <h2 className="text-2xl font-bold">Tạo phụ đề tự động</h2>
-                        <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                            Chọn công cụ nhận dạng giọng nói bên dưới để bắt đầu tạo file phụ đề SRT.
-                        </p>
-                    </div>
-
-                    { }
                     <div className="grid grid-cols-3 gap-4 w-full">
                         {ENGINES.map((engine) => {
                             const isSelected = selectedEngine === engine.id;
@@ -403,7 +393,39 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
                         })}
                     </div>
 
-                    { }
+                    <div className="w-full space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                            <Globe className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Ngôn ngữ audio</span>
+                        </div>
+                        <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Chọn ngôn ngữ" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                                {WHISPER_LANGUAGES.map(lang => (
+                                    <SelectItem key={lang.code} value={lang.code}>
+                                        <span className="flex items-center gap-2">
+                                            {lang.code === "auto" ? (
+                                                <Globe className="w-3.5 h-3.5 text-primary" />
+                                            ) : (
+                                                <ReactCountryFlag
+                                                    countryCode={LANGUAGE_TO_COUNTRY[lang.code] || lang.code.toUpperCase()}
+                                                    svg
+                                                    style={{ width: '1.2em', height: '1.2em', borderRadius: '4px' }}
+                                                />
+                                            )}
+                                            {lang.name}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            Chọn ngôn ngữ chính xác sẽ giúp Whisper nhận dạng tốt hơn. Để "Tự động" nếu không chắc.
+                        </p>
+                    </div>
+
                     <Button
                         size="lg"
                         onClick={handleStartTranscript}

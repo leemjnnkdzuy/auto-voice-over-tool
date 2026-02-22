@@ -16,14 +16,25 @@ interface Window {
 
         getApiKey: (provider: string) => Promise<string>;
         setApiKey: (provider: string, key: string) => Promise<boolean>;
+        getPrompts: () => Promise<{ id: string; name: string; systemPrompt: string; isDefault?: boolean }[]>;
+        savePrompts: (prompts: { id: string; name: string; systemPrompt: string; isDefault?: boolean }[]) => Promise<boolean>;
+        getActivePromptId: () => Promise<string>;
+        setActivePromptId: (id: string) => Promise<boolean>;
         createProjectFolder: (basePath: string, projectName: string) => Promise<boolean>;
         getProjectMetadata: (projectPath: string) => Promise<any>;
         saveProjectMetadata: (projectPath: string, metadata: any) => Promise<boolean>;
+        resetProjectData: (projectPath: string) => Promise<boolean>;
         getVideoInfo: (url: string) => Promise<any>;
         downloadVideo: (url: string, projectPath: string) => void;
         onDownloadProgress: (callback: (progress: { video: number; audio: number }) => void) => void;
         onDownloadComplete: (callback: (success: boolean) => void) => void;
         removeDownloadListeners: () => void;
+
+        selectVideoFile: () => Promise<string | null>;
+        importLocalVideo: (filePath: string, projectPath: string) => void;
+        onImportLocalProgress: (callback: (progress: { step: string; progress: number; detail: string }) => void) => void;
+        onImportLocalComplete: (callback: (success: boolean) => void) => void;
+        removeImportLocalListeners: () => void;
 
         checkEnvironment: () => Promise<boolean>;
         setupEnvironment: () => void;
@@ -31,7 +42,7 @@ interface Window {
         removeSetupListeners: () => void;
 
         getExistingSrt: (projectPath: string) => Promise<{ srtPath: string; srtContent: string } | null>;
-        transcribeAudio: (projectPath: string, engine?: string) => void;
+        transcribeAudio: (projectPath: string, engine?: string, language?: string) => void;
         onTranscriptProgress: (callback: (progress: any) => void) => void;
         onTranscriptComplete: (callback: (result: any) => void) => void;
         removeTranscriptListeners: () => void;

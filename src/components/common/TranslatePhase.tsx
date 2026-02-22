@@ -13,7 +13,7 @@ import {
     ChevronDown,
     Check,
 } from "lucide-react";
-import { parseSrt, stringifySrt, MINECRAFT_GLOSSARY, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
+import { parseSrt, stringifySrt, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
 import { useProcessContext } from "@/stores/ProcessStore";
 import {
     DropdownMenu,
@@ -29,6 +29,8 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
     const [srtEntries, setSrtEntries] = useState<SrtEntry[]>([]);
     const [translatedEntries, setTranslatedEntries] = useState<SrtEntry[]>([]);
     const [selectedLang, setSelectedLang] = useState("vi");
+    const [prompts, setPrompts] = useState<{ id: string; name: string; systemPrompt: string; isDefault?: boolean }[]>([]);
+    const [selectedPromptId, setSelectedPromptId] = useState("");
     const [projectPath, setProjectPath] = useState("");
     const [hasApiKey, setHasApiKey] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
@@ -53,6 +55,15 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
 
             const apiKey = await window.api.getApiKey("deepseek");
             setHasApiKey(!!apiKey);
+
+            const loadedPrompts = await window.api.getPrompts();
+            setPrompts(loadedPrompts);
+            const activePromptId = await window.api.getActivePromptId();
+            if (activePromptId && loadedPrompts.find(p => p.id === activePromptId)) {
+                setSelectedPromptId(activePromptId);
+            } else if (loadedPrompts.length > 0) {
+                setSelectedPromptId(loadedPrompts[0].id);
+            }
 
             const projects = await window.api.getProjects();
             const project = projects.find((p: any) => p.id === id);
@@ -116,6 +127,19 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
         try {
             const apiKey = await window.api.getApiKey("deepseek");
             const langName = TARGET_LANGUAGES.find(l => l.code === selectedLang)?.name || selectedLang;
+            const promptConfig = prompts.find(p => p.id === selectedPromptId) || prompts[0];
+            const userPrompt = promptConfig?.systemPrompt || "";
+
+            // Program auto-injects language direction + format rules
+            const systemPrompt = `Translate subtitle segments to ${langName}.
+
+FORMAT RULES:
+- Each segment is separated by "---"
+- Return ONLY the translated segments separated by "---", nothing else
+- Preserve the same number of segments
+- Do NOT add any extra text, explanation, or numbering
+
+${userPrompt}`.trim();
 
             const BATCH_SIZE = 20;
             const CONCURRENCY = 5;
@@ -143,18 +167,7 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
                             messages: [
                                 {
                                     role: "system",
-                                    content: `You are a professional Minecraft subtitle translator. Translate subtitle segments from English to ${langName}.
-
-IMPORTANT RULES:
-- Use official Minecraft terminology for the target language
-- Keep translations natural, conversational, and suitable for voice-over dubbing
-- Each segment is separated by "---"
-- Return ONLY the translated segments separated by "---", nothing else
-- Preserve the same number of segments
-- Keep proper nouns (player names, server names) unchanged
-- Translations should be concise and match subtitle timing
-
-${MINECRAFT_GLOSSARY(langName)}`
+                                    content: systemPrompt
                                 },
                                 {
                                     role: "user",
@@ -272,43 +285,76 @@ ${MINECRAFT_GLOSSARY(langName)}`
 
                     { }
                     <div className="space-y-3">
-                        <h3 className="text-sm font-semibold">Chọn ngôn ngữ đích</h3>
-                        <div className="w-full">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-between h-12">
-                                        {(() => {
-                                            const lang = TARGET_LANGUAGES.find(l => l.code === selectedLang);
-                                            return (
-                                                <span className="flex items-center gap-3">
-                                                    <span className="text-xl flex items-center justify-center">
-                                                        <ReactCountryFlag countryCode={lang?.flag || ""} svg />
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">Chọn Prompt & Ngôn ngữ</h3>
+                            <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => window.api.openSettingsWindow()}>
+                                <Settings className="w-3.5 h-3.5 mr-1" /> Cài đặt prompt
+                            </Button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="w-full">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-between h-12">
+                                            <span className="truncate">{prompts.find(p => p.id === selectedPromptId)?.name || "Chọn Prompt..."}</span>
+                                            <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px]" align="start">
+                                        {prompts.map(p => (
+                                            <DropdownMenuItem
+                                                key={p.id}
+                                                onClick={() => setSelectedPromptId(p.id)}
+                                                className="cursor-pointer"
+                                            >
+                                                <span className="truncate">{p.name}</span>
+                                                {selectedPromptId === p.id && (
+                                                    <Check className="ml-auto w-4 h-4 text-primary shrink-0" />
+                                                )}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+
+                            <div className="w-full">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-between h-12">
+                                            {(() => {
+                                                const lang = TARGET_LANGUAGES.find(l => l.code === selectedLang);
+                                                return (
+                                                    <span className="flex items-center gap-2 truncate">
+                                                        <span className="text-xl flex items-center justify-center shrink-0">
+                                                            <ReactCountryFlag countryCode={lang?.flag || ""} svg />
+                                                        </span>
+                                                        <span className="font-medium truncate">{lang?.name}</span>
                                                     </span>
-                                                    <span className="font-medium">{lang?.name}</span>
+                                                );
+                                            })()}
+                                            <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px]" align="start">
+                                        {TARGET_LANGUAGES.map(lang => (
+                                            <DropdownMenuItem
+                                                key={lang.code}
+                                                onClick={() => setSelectedLang(lang.code)}
+                                                className="flex items-center gap-3 py-2.5 cursor-pointer"
+                                            >
+                                                <span className="text-lg flex items-center justify-center shrink-0">
+                                                    <ReactCountryFlag countryCode={lang.flag} svg />
                                                 </span>
-                                            );
-                                        })()}
-                                        <ChevronDown className="w-4 h-4 opacity-50" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px]" align="start">
-                                    {TARGET_LANGUAGES.map(lang => (
-                                        <DropdownMenuItem
-                                            key={lang.code}
-                                            onClick={() => setSelectedLang(lang.code)}
-                                            className="flex items-center gap-3 py-2.5 cursor-pointer"
-                                        >
-                                            <span className="text-lg flex items-center justify-center">
-                                                <ReactCountryFlag countryCode={lang.flag} svg />
-                                            </span>
-                                            <span className="font-medium">{lang.name}</span>
-                                            {selectedLang === lang.code && (
-                                                <Check className="ml-auto w-4 h-4 text-primary" />
-                                            )}
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                                                <span className="font-medium">{lang.name}</span>
+                                                {selectedLang === lang.code && (
+                                                    <Check className="ml-auto w-4 h-4 text-primary shrink-0" />
+                                                )}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </div>
                     </div>
 

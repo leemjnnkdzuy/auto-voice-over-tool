@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Settings, Cpu, Key, AudioLines } from "lucide-react";
+import { Settings, Cpu, Key, AudioLines, FileText } from "lucide-react";
 import "@/stores/ModelDownloadStore";
 import {
     SidebarProvider,
@@ -17,8 +17,9 @@ import {
 import { WhisperModelPage } from "@/windows/setting/WhisperModelPage";
 import { DeepseekKeyPage } from "@/windows/setting/DeepseekKeyPage";
 import { AssemblyaiKeyPage } from "@/windows/setting/AssemblyaiKeyPage";
+import { PromptTranslateManagerPage } from "@/windows/setting/PromptTranslateManagerPage";
 
-type SettingTab = "whisper-model" | "deepseek-key" | "assemblyai-key";
+type SettingTab = "whisper-model" | "deepseek-key" | "assemblyai-key" | "prompt-translate";
 
 interface TabConfig {
     id: SettingTab;
@@ -45,6 +46,12 @@ export const TABS: TabConfig[] = [
         label: "AssemblyAI Key",
         icon: AudioLines,
         component: AssemblyaiKeyPage,
+    },
+    {
+        id: "prompt-translate",
+        label: "Prompt Dịch",
+        icon: FileText,
+        component: PromptTranslateManagerPage,
     },
 ];
 

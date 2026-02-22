@@ -102,7 +102,7 @@ export const Header = () => {
                     className="absolute left-1/2 -translate-x-1/2 w-[800px]"
                 >
                     <TabsList className="grid w-full grid-cols-5">
-                        <TabsTrigger value="download" disabled={isProcessing}>1. Tải video</TabsTrigger>
+                        <TabsTrigger value="download" disabled={isProcessing}>1. Nhập video</TabsTrigger>
                         <TabsTrigger value="transcript" disabled={isProcessing || !phaseStatus.download}>2. Tạo phụ đề</TabsTrigger>
                         <TabsTrigger value="translate" disabled={isProcessing || !phaseStatus.transcript}>3. Dịch phụ đề</TabsTrigger>
                         <TabsTrigger value="audio" disabled={isProcessing || !phaseStatus.translate}>4. Tạo audio</TabsTrigger>

@@ -1,7 +1,7 @@
 import { ipcMain, shell } from "electron";
 import fs from "fs";
 import path from "path";
-import { getApiKey, setApiKey } from "../services/ConfigService";
+import { getApiKey, setApiKey, getPrompts, savePrompts, getActivePromptId, setActivePromptId } from "../services/ConfigService";
 
 export const setupSystemIpc = () => {
     ipcMain.handle("get-api-key", (_event, provider: string) => {
@@ -68,5 +68,21 @@ export const setupSystemIpc = () => {
         } catch {
             return empty;
         }
+    });
+
+    ipcMain.handle("get-prompts", () => {
+        return getPrompts();
+    });
+
+    ipcMain.handle("save-prompts", (_event, prompts: any[]) => {
+        return savePrompts(prompts);
+    });
+
+    ipcMain.handle("get-active-prompt-id", () => {
+        return getActivePromptId();
+    });
+
+    ipcMain.handle("set-active-prompt-id", (_event, id: string) => {
+        return setActivePromptId(id);
     });
 };

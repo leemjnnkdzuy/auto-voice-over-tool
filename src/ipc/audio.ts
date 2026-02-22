@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { transcribeAudio, getExistingSrt } from "../services/TranscriptService";
-import { optimizeSrtFile , parseSrt as parseSrtMain } from "../lib/SrtOptimizer";
+import { optimizeSrtFile, parseSrt as parseSrtMain } from "../lib/SrtOptimizer";
 
 import { generateAllAudio, generateAudioSegment, VOICE_MAP } from "../services/PiperService";
 import fs from "fs";
@@ -11,13 +11,14 @@ export const setupAudioIpc = () => {
         return getExistingSrt(projectPath);
     });
 
-    ipcMain.on("transcribe-audio", (event, projectPath, engine) => {
+    ipcMain.on("transcribe-audio", (event, projectPath, engine, language) => {
         transcribeAudio(
             projectPath,
             (progress) => {
                 event.sender.send("transcript-progress", progress);
             },
             engine || "whisper-cpu",
+            language || "auto",
         ).then((result) => {
             event.sender.send("transcript-complete", result);
         });
@@ -143,7 +144,7 @@ export const setupAudioIpc = () => {
                         try {
                             fs.unlinkSync(path.join(outputDir, f));
                         } catch {
-                            
+
                         }
                     }
                 }

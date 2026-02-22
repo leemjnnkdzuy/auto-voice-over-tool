@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useParams } from "react-router-dom";
-import { DownloadPhase } from "@/components/common/DownloadPhase";
+import { InputPhase } from "@/components/common/InputPhase";
 import { TranscriptPhase } from "@/components/common/TranscriptPhase";
 import { TranslatePhase } from "@/components/common/TranslatePhase";
 import { AudioGeneratePhase } from "@/components/common/AudioGeneratePhase";
@@ -42,7 +42,7 @@ export const ProjectPage = () => {
         <div className="container mx-auto py-6 h-full flex flex-col">
             <div className="flex-1 flex flex-col items-center justify-center overflow-hidden">
                 {currentPhase === "download" && (
-                    <DownloadPhase onComplete={() => completeAndNavigate("download", "transcript")} />
+                    <InputPhase onComplete={() => completeAndNavigate("download", "transcript")} />
                 )}
                 {currentPhase === "transcript" && (
                     <TranscriptPhase onComplete={() => completeAndNavigate("transcript", "translate")} />
