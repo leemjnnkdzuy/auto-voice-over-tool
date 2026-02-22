@@ -203,7 +203,7 @@ export const AboutPage = () => {
 
                 <div className="text-center mt-12 pt-8 border-t">
                     <p className="text-xs text-muted-foreground">
-                        © 2026 Duy Le (leemjnnkdzuy). Tự hào phát hành tại Việt Nam.
+                        © 2026 @leemjnnkdzuy. Tự hào phát hành tại Việt Nam.
                     </p>
                 </div>
             </div>
