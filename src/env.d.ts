@@ -11,6 +11,7 @@ interface Window {
         selectDirectory: () => Promise<string | null>;
         getPinnedPath: () => Promise<string>;
         setPinnedPath: (path: string) => Promise<boolean>;
+        getHardwareInfo: () => Promise<{ cpuName: string; totalRamGB: number; gpus: string[]; hasNvidiaGpu: boolean }>;
 
         openSettingsWindow: () => Promise<void>;
 

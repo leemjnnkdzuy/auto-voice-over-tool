@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import https from 'https';
 import { spawn } from 'child_process';
+import { getHardwareInfo } from './HardwareService';
 
 const isDev = !app.isPackaged;
 const BIN_DIR = isDev
@@ -506,6 +507,9 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
         } else {
             onProgress({ status: 'checking', progress: 95, detail: 'Mô hình Whisper đã sẵn sàng.' });
         }
+
+        onProgress({ status: 'checking', progress: 98, detail: 'Đang kiểm tra phần cứng hệ thống...' });
+        await getHardwareInfo();
 
         onProgress({ status: 'ready', progress: 100, detail: 'Môi trường đã sẵn sàng!' });
         return true;

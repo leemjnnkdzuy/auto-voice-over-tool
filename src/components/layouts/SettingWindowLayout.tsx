@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Settings, Cpu, Key, AudioLines, FileText } from "lucide-react";
+import { Settings, Cpu, Key, AudioLines, FileText, MonitorDot } from "lucide-react";
 import "@/stores/ModelDownloadStore";
 import {
     SidebarProvider,
@@ -18,8 +18,9 @@ import { WhisperModelPage } from "@/windows/setting/WhisperModelPage";
 import { DeepseekKeyPage } from "@/windows/setting/DeepseekKeyPage";
 import { AssemblyaiKeyPage } from "@/windows/setting/AssemblyaiKeyPage";
 import { PromptTranslateManagerPage } from "@/windows/setting/PromptTranslateManagerPage";
+import { HardwareDetectPage } from "@/windows/setting/HardwareDetectPage";
 
-type SettingTab = "whisper-model" | "deepseek-key" | "assemblyai-key" | "prompt-translate";
+type SettingTab = "whisper-model" | "deepseek-key" | "assemblyai-key" | "prompt-translate" | "hardware-detect";
 
 interface TabConfig {
     id: SettingTab;
@@ -29,6 +30,12 @@ interface TabConfig {
 }
 
 export const TABS: TabConfig[] = [
+    {
+        id: "hardware-detect",
+        label: "Phần cứng",
+        icon: MonitorDot,
+        component: HardwareDetectPage,
+    },
     {
         id: "whisper-model",
         label: "Model Whisper",

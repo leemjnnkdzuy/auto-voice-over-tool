@@ -1,26 +1,19 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-    Loader2,
+    
     Languages,
     CheckCircle2,
     Play,
     Settings,
     FileText,
-    ArrowRight,
-    ChevronDown,
-    Check,
-} from "lucide-react";
+    ArrowRight} from "lucide-react";
 import { parseSrt, stringifySrt, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
 import { useProcessContext } from "@/stores/ProcessStore";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReactCountryFlag from "react-country-flag";
 
 export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
@@ -36,12 +29,7 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
     const [isChecking, setIsChecking] = useState(true);
     const [progress, setProgress] = useState({ current: 0, total: 0, percent: 0 });
 
-    const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
-
-    const isAutoProcessRef = useRef(isAutoProcess);
-    useEffect(() => {
-        isAutoProcessRef.current = isAutoProcess;
-    }, [isAutoProcess]);
+    const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
     useEffect(() => {
         setGlobalProcessing(phase === "translating");
@@ -108,16 +96,6 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
         checkTranslation();
     }, [selectedLang, projectPath]);
 
-    const autoStartedRef = useRef(false);
-
-    useEffect(() => {
-        if (isAutoProcess && phase === "idle" && !autoStartedRef.current && srtEntries.length > 0 && hasApiKey && projectPath) {
-            autoStartedRef.current = true;
-            setTimeout(() => {
-                handleStartTranslate();
-            }, 500);
-        }
-    }, [isAutoProcess, phase, srtEntries.length, hasApiKey, projectPath]);
 
     const handleStartTranslate = async () => {
         if (!projectPath || !hasApiKey || srtEntries.length === 0) return;
@@ -160,8 +138,7 @@ ${userPrompt}`.trim();
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            "Authorization": `Bearer ${apiKey}`,
-                        },
+                            "Authorization": `Bearer ${apiKey}`},
                         body: JSON.stringify({
                             model: "deepseek-chat",
                             messages: [
@@ -171,12 +148,9 @@ ${userPrompt}`.trim();
                                 },
                                 {
                                     role: "user",
-                                    content: textsToTranslate,
-                                },
+                                    content: textsToTranslate},
                             ],
-                            temperature: 0.3,
-                        }),
-                    });
+                            temperature: 0.3})});
 
                     if (!response.ok) throw new Error(await response.text());
 
@@ -196,8 +170,7 @@ ${userPrompt}`.trim();
                     setProgress({
                         current: completedCount,
                         total: srtEntries.length,
-                        percent: Math.round((completedCount / srtEntries.length) * 100),
-                    });
+                        percent: Math.round((completedCount / srtEntries.length) * 100)});
                 }
             };
 
@@ -229,9 +202,6 @@ ${userPrompt}`.trim();
             setTranslatedEntries(finalTranslated);
             setPhase("done");
 
-            if (isAutoProcessRef.current && onComplete) {
-                onComplete();
-            }
         } catch (error) {
             console.error("Translation failed:", error);
             setPhase("idle");
@@ -241,7 +211,7 @@ ${userPrompt}`.trim();
     if (isChecking) {
         return (
             <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -249,7 +219,6 @@ ${userPrompt}`.trim();
     return (
         <div className="flex flex-col items-center justify-center p-4 space-y-4 max-w-7xl w-full mx-auto h-full">
 
-            { }
             {phase === "no-srt" && (
                 <div className="text-center space-y-4 animate-in fade-in duration-300">
                     <FileText className="w-16 h-16 text-muted-foreground/30 mx-auto" />
@@ -260,7 +229,6 @@ ${userPrompt}`.trim();
                 </div>
             )}
 
-            { }
             {phase === "idle" && srtEntries.length > 0 && (
                 <div className="w-full max-w-lg animate-in fade-in duration-300 space-y-6">
                     <div className="text-center space-y-2">
@@ -271,7 +239,7 @@ ${userPrompt}`.trim();
                         </p>
                     </div>
 
-                    { }
+
                     {!hasApiKey && (
                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-center">
                             <p className="text-sm text-amber-600 font-medium">
@@ -283,7 +251,7 @@ ${userPrompt}`.trim();
                         </div>
                     )}
 
-                    { }
+
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold">Chọn Prompt & Ngôn ngữ</h3>
@@ -293,72 +261,38 @@ ${userPrompt}`.trim();
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                            <div className="w-full">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="w-full justify-between h-12">
-                                            <span className="truncate">{prompts.find(p => p.id === selectedPromptId)?.name || "Chọn Prompt..."}</span>
-                                            <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px]" align="start">
-                                        {prompts.map(p => (
-                                            <DropdownMenuItem
-                                                key={p.id}
-                                                onClick={() => setSelectedPromptId(p.id)}
-                                                className="cursor-pointer"
-                                            >
-                                                <span className="truncate">{p.name}</span>
-                                                {selectedPromptId === p.id && (
-                                                    <Check className="ml-auto w-4 h-4 text-primary shrink-0" />
-                                                )}
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
+                            <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
+                                <SelectTrigger className="w-full h-12">
+                                    <SelectValue placeholder="Chọn Prompt..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {prompts.map(p => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
 
-                            <div className="w-full">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="w-full justify-between h-12">
-                                            {(() => {
-                                                const lang = TARGET_LANGUAGES.find(l => l.code === selectedLang);
-                                                return (
-                                                    <span className="flex items-center gap-2 truncate">
-                                                        <span className="text-xl flex items-center justify-center shrink-0">
-                                                            <ReactCountryFlag countryCode={lang?.flag || ""} svg />
-                                                        </span>
-                                                        <span className="font-medium truncate">{lang?.name}</span>
-                                                    </span>
-                                                );
-                                            })()}
-                                            <ChevronDown className="w-4 h-4 opacity-50 shrink-0 ml-2" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px]" align="start">
-                                        {TARGET_LANGUAGES.map(lang => (
-                                            <DropdownMenuItem
-                                                key={lang.code}
-                                                onClick={() => setSelectedLang(lang.code)}
-                                                className="flex items-center gap-3 py-2.5 cursor-pointer"
-                                            >
-                                                <span className="text-lg flex items-center justify-center shrink-0">
-                                                    <ReactCountryFlag countryCode={lang.flag} svg />
-                                                </span>
-                                                <span className="font-medium">{lang.name}</span>
-                                                {selectedLang === lang.code && (
-                                                    <Check className="ml-auto w-4 h-4 text-primary shrink-0" />
-                                                )}
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
+                            <Select value={selectedLang} onValueChange={setSelectedLang}>
+                                <SelectTrigger className="w-full h-12">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {TARGET_LANGUAGES.map(lang => (
+                                        <SelectItem key={lang.code} value={lang.code}>
+                                            <span className="flex items-center gap-2">
+                                                <ReactCountryFlag countryCode={lang.flag} svg className="text-base" />
+                                                <span>{lang.name}</span>
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
-                    { }
+
                     <Button
                         className="w-full gap-2"
                         size="lg"
@@ -372,7 +306,6 @@ ${userPrompt}`.trim();
                 </div>
             )}
 
-            { }
             {phase === "translating" && (
                 <div className="w-full max-w-lg space-y-6 animate-in fade-in duration-300">
                     <div className="text-center space-y-2">
@@ -385,10 +318,9 @@ ${userPrompt}`.trim();
                 </div>
             )}
 
-            { }
             {phase === "done" && translatedEntries.length > 0 && (
                 <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
-                    { }
+
                     <div className="flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -417,7 +349,7 @@ ${userPrompt}`.trim();
                         </div>
                     </div>
 
-                    { }
+
                     <div className="flex-1 overflow-y-auto border rounded-xl">
                         <div className="divide-y">
                             {translatedEntries.map((entry, i) => (

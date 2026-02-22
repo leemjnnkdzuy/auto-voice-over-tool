@@ -3,6 +3,7 @@ import { setupVideoIpc } from "./video";
 import { setupEnvironmentIpc } from "./environment";
 import { setupAudioIpc } from "./audio";
 import { setupSystemIpc } from "./system";
+import { setupHardwareIpc } from "./hardware";
 
 export const setupIpcHandlers = () => {
     setupProjectIpc();
@@ -10,4 +11,5 @@ export const setupIpcHandlers = () => {
     setupEnvironmentIpc();
     setupAudioIpc();
     setupSystemIpc();
+    setupHardwareIpc();
 };

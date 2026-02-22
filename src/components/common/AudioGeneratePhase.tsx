@@ -1,9 +1,10 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-    Loader2,
+    
     Volume2,
     CheckCircle2,
     Play,
@@ -12,8 +13,7 @@ import {
     Music,
     Square,
     RefreshCw,
-    ArrowRight,
-} from "lucide-react";
+    ArrowRight} from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { parseSrt, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
 import { useProcessContext } from "@/stores/ProcessStore";
@@ -44,15 +44,10 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
     const [playingIndex, setPlayingIndex] = useState<number | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
+    const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
-    const isAutoProcessRef = useRef(isAutoProcess);
     const retryCountRef = useRef(0);
     const retryItemsQueueRef = useRef<number[]>([]);
-
-    useEffect(() => {
-        isAutoProcessRef.current = isAutoProcess;
-    }, [isAutoProcess]);
 
     useEffect(() => {
         setGlobalProcessing(isGenerating);
@@ -131,44 +126,10 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                 if (projectPath) {
                     window.api.listGeneratedAudio(projectPath).then(files => {
                         setAudioFiles(files);
-
-                        if (progressData.entryIndex === undefined) {
-                            setEntryStatuses(currentStatuses => {
-                                const failedIndices = Array.from(currentStatuses.entries())
-                                    .filter(([_, s]) => s === 'failed')
-                                    .map(([idx]) => idx);
-
-                                if (isAutoProcessRef.current) {
-                                    if (failedIndices.length > 0 && retryCountRef.current < 3) {
-                                        retryCountRef.current += 1;
-                                        retryItemsQueueRef.current = failedIndices;
-                                        setTimeout(() => processRetryQueue(failedIndices), 500);
-                                    } else if (onComplete) {
-                                        onComplete();
-                                    }
-                                }
-                                return currentStatuses;
-                            });
-                        } else {
-                            if (retryItemsQueueRef.current.length > 0) {
-                                retryItemsQueueRef.current = retryItemsQueueRef.current.filter(id => id !== progressData.entryIndex);
-                                if (retryItemsQueueRef.current.length === 0) {
-                                    if (isAutoProcessRef.current && onComplete) {
-                                        onComplete();
-                                    }
-                                }
-                            }
-                        }
                     });
                 }
             } else if (progressData.status === 'error') {
                 setIsGenerating(false);
-                if (progressData.entryIndex !== undefined && retryItemsQueueRef.current.length > 0) {
-                    retryItemsQueueRef.current = retryItemsQueueRef.current.filter(id => id !== progressData.entryIndex);
-                    if (retryItemsQueueRef.current.length === 0 && isAutoProcessRef.current && onComplete) {
-                        onComplete();
-                    }
-                }
             }
         });
 
@@ -177,23 +138,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
         };
     }, [projectPath, onComplete]);
 
-    const autoStartedRef = useRef(false);
-
-    useEffect(() => {
-        if (isAutoProcess && phase === "ready" && !autoStartedRef.current && translatedEntries.length > 0 && translatedLang && projectPath) {
-            autoStartedRef.current = true;
-
-            const doneCount = Array.from(entryStatuses.values()).filter(s => s === 'done').length;
-            if (audioFiles.length > 0 && doneCount >= translatedEntries.length) {
-                if (onComplete) onComplete();
-                return;
-            }
-
-            setTimeout(() => {
-                handleStartGenerate();
-            }, 500);
-        }
-    }, [isAutoProcess, phase, translatedEntries.length, translatedLang, projectPath, audioFiles.length, entryStatuses, onComplete]);
 
     const handleStartGenerate = () => {
         if (!projectPath || !translatedLang) return;
@@ -266,7 +210,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
     if (phase === "loading") {
         return (
             <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -322,7 +266,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                         >
                             {isGenerating ? (
                                 <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <Spinner className="w-3.5 h-3.5 animate-spin" />
                                     Đang tạo...
                                 </>
                             ) : (
@@ -373,7 +317,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                     { }
                                     <div className="shrink-0 w-8 h-8 flex items-center justify-center">
                                         {status === 'generating' ? (
-                                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                            <Spinner className="w-4 h-4 animate-spin text-primary" />
                                         ) : status === 'done' && audioFile ? (
                                             <Button
                                                 variant={isPlaying ? "default" : "ghost"}

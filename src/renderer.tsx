@@ -6,12 +6,15 @@ import { LoadingScreen } from "./components/common/LoadingScreen";
 import './index.css';
 
 import { ThemeProvider } from "./hooks/theme-provider";
+import { useHardwareStore } from "./stores/HardwareStore";
 
 const App = () => {
   const [isReady, setIsReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const { fetchHardwareInfo } = useHardwareStore();
 
   useEffect(() => {
+    fetchHardwareInfo();
     window.api.checkEnvironment().then((ready) => {
       if (ready) {
         setIsReady(true);

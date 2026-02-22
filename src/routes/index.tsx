@@ -6,6 +6,7 @@ import { SettingWindowLayout, SettingPage } from "@/components/layouts/SettingWi
 
 import { HomePage } from "@/windows/main/HomePage";
 import { ProjectPage } from "@/windows/main/ProjectPage";
+import { ProjectAutoPage } from "@/windows/main/ProjectAutoPage";
 
 const publicRoutes = [
 	{
@@ -16,6 +17,11 @@ const publicRoutes = [
 	{
 		path: "/project/:id",
 		component: ProjectPage,
+		layout: HeaderLayout,
+	},
+	{
+		path: "/project/:id/auto",
+		component: ProjectAutoPage,
 		layout: HeaderLayout,
 	},
 	{

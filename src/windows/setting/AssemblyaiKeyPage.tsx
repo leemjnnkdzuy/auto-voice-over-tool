@@ -1,7 +1,8 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, Check, Loader2, ExternalLink } from "lucide-react";
+import { Eye, EyeOff, Check,  ExternalLink } from "lucide-react";
 
 export const AssemblyaiKeyPage = () => {
     const [apiKey, setApiKey] = useState("");
@@ -70,7 +71,7 @@ export const AssemblyaiKeyPage = () => {
                         className="shrink-0 min-w-[72px]"
                     >
                         {saving ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Spinner className="w-4 h-4 animate-spin" />
                         ) : saved ? (
                             <Check className="w-4 h-4" />
                         ) : (

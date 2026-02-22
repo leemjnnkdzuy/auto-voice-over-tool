@@ -1,23 +1,26 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams, matchPath, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles, CheckCircle2, Circle} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProcessContext } from "@/stores/ProcessStore";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { useAutoPipeline, AUTO_PHASE_LABELS } from "@/stores/AutoPipelineStore";
+import { motion } from "motion/react";
 
 export const Header = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const parsedPath = matchPath("/project/:id", location.pathname);
+    const parsedPath = matchPath("/project/:id", location.pathname) || matchPath("/project/:id/auto", location.pathname);
     const projectId = parsedPath ? parsedPath.params.id : null;
+    const isAutoPage = !!matchPath("/project/:id/auto", location.pathname);
 
     const isProjectPage = !!projectId;
     const currentTab = searchParams.get("tab") || "download";
-    const { isProcessing, isAutoProcess, setIsAutoProcess } = useProcessContext();
+    const { isProcessing } = useProcessContext();
+    const { currentPhase, completedPhases } = useAutoPipeline();
 
     const [projectName, setProjectName] = useState("");
     const [projectDate, setProjectDate] = useState("");
@@ -27,8 +30,7 @@ export const Header = () => {
         transcript: false,
         translate: false,
         audio: false,
-        final: false,
-    });
+        final: false});
 
     useEffect(() => {
         if (projectId) {
@@ -75,6 +77,8 @@ export const Header = () => {
         return () => clearInterval(intervalId);
     }, [projectPath]);
 
+    const getPhaseIndex = (key: string) => AUTO_PHASE_LABELS.findIndex(p => p.key === key);
+
     return (
         <header className="border-b bg-background px-6 py-3 flex items-center justify-between h-16 shrink-0 z-50 relative">
             <div className="flex items-center gap-4">
@@ -95,7 +99,8 @@ export const Header = () => {
                 )}
             </div>
 
-            {isProjectPage && (
+            {/* Manual mode: 5-step tabs */}
+            {isProjectPage && !isAutoPage && (
                 <Tabs
                     value={currentTab}
                     onValueChange={(val) => !isProcessing && setSearchParams({ tab: val })}
@@ -111,18 +116,88 @@ export const Header = () => {
                 </Tabs>
             )}
 
-            { }
-            <div className="flex items-center gap-2">
-                <Switch
-                    id="auto-process"
-                    checked={isAutoProcess}
-                    onCheckedChange={setIsAutoProcess}
-                    disabled={isProcessing}
-                />
-                <Label htmlFor="auto-process" className="text-sm font-medium whitespace-nowrap cursor-pointer">
-                    Tự động xử lý
-                </Label>
-            </div>
+            {/* Auto mode: pipeline progress stepper */}
+            {isProjectPage && isAutoPage && currentPhase !== "config" && (
+                <div className="absolute left-1/2 -translate-x-1/2 w-[700px]">
+                    <div className="flex items-center gap-1">
+                        {AUTO_PHASE_LABELS.map((phase, i) => {
+                            const phaseIdx = getPhaseIndex(phase.key);
+                            const currentIdx = getPhaseIndex(currentPhase);
+                            const isActive = phase.key === currentPhase;
+                            const isDone = completedPhases.has(phase.key) || currentPhase === "done";
+                            const isPast = phaseIdx < currentIdx;
+
+                            return (
+                                <div key={phase.key} className="flex items-center flex-1">
+                                    <div className={`flex items-center gap-1.5 text-xs font-medium transition-all duration-300 ${isActive ? "text-primary" : isDone || isPast ? "text-green-500" : "text-muted-foreground/50"
+                                        }`}>
+                                        {isDone || isPast ? (
+                                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                            </motion.div>
+                                        ) : isActive ? (
+                                            <Spinner className="w-4 h-4 animate-spin shrink-0" />
+                                        ) : (
+                                            <Circle className="w-4 h-4 shrink-0" />
+                                        )}
+                                        <span className="whitespace-nowrap">{phase.label}</span>
+                                    </div>
+                                    {i < AUTO_PHASE_LABELS.length - 1 && (
+                                        <div className="flex-1 h-px mx-2 bg-border relative overflow-hidden">
+                                            <motion.div
+                                                className="absolute inset-y-0 left-0 bg-green-500/50"
+                                                initial={{ width: "0%" }}
+                                                animate={{ width: isDone || isPast ? "100%" : "0%" }}
+                                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Right side buttons */}
+            {isProjectPage && !isAutoPage && (
+                <button
+                    className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${!phaseStatus.download || isProcessing
+                        ? "opacity-40 cursor-not-allowed text-muted-foreground bg-muted border border-border"
+                        : "text-foreground cursor-pointer hover:opacity-90"
+                        }`}
+                    onClick={() => phaseStatus.download && !isProcessing && navigate(`/project/${projectId}/auto`)}
+                    disabled={!phaseStatus.download || isProcessing}
+                    style={phaseStatus.download && !isProcessing ? {
+                        background: "var(--background)",
+                        border: "none",
+                        padding: "6px 12px"} : undefined}
+                >
+                    {phaseStatus.download && !isProcessing && (
+                        <>
+                            <span
+                                className="absolute -inset-[1.5px] rounded-[7px] -z-10 animate-[gradient-spin_3s_linear_infinite]"
+                                style={{
+                                    background: "conic-gradient(from var(--gradient-angle), #4285f4, #ea4335, #fbbc04, #34a853, #4285f4)"}}
+                            />
+                            <span className="absolute inset-0 rounded-md bg-background -z-[5]" />
+                        </>
+                    )}
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Tự động
+                </button>
+            )}
+            {isProjectPage && isAutoPage && (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => navigate(`/project/${projectId}`)}
+                >
+                    Thủ công
+                </Button>
+            )}
+            {!isProjectPage && <div />}
         </header>
     );
 };

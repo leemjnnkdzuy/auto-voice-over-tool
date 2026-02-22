@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useModelDownloadStore } from "@/stores/ModelDownloadStore";
 import { Button } from "@/components/ui/button";
@@ -5,11 +6,10 @@ import {
     Download,
     Trash2,
     CheckCircle2,
-    Loader2,
+    
     HardDrive,
     MemoryStick,
-    Star,
-} from "lucide-react";
+    Star} from "lucide-react";
 
 interface WhisperModel {
     id: string;
@@ -79,7 +79,7 @@ export const WhisperModelPage = () => {
 
             {loading ? (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <Spinner className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
             ) : (
                 <div className="border rounded-lg overflow-hidden">
@@ -148,7 +148,7 @@ export const WhisperModelPage = () => {
                                         >
                                             {isDownloading ? (
                                                 <>
-                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                    <Spinner className="w-3 h-3 animate-spin" />
                                                     {downloadPercent}%
                                                 </>
                                             ) : (
@@ -180,7 +180,7 @@ export const WhisperModelPage = () => {
                                                 title={isLastDownloaded ? "Không thể xóa model cuối cùng" : `Xóa ${model.name}`}
                                             >
                                                 {isDeleting ? (
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    <Spinner className="w-3.5 h-3.5 animate-spin" />
                                                 ) : (
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 )}

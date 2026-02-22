@@ -1,9 +1,10 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Clipboard, CheckCircle2, RotateCcw, ArrowRight, Upload, Link, FolderOpen } from "lucide-react";
+import {  Clipboard, CheckCircle2, RotateCcw, ArrowRight, Upload, Link, FolderOpen } from "lucide-react";
 import { useProcessContext } from "@/stores/ProcessStore";
 
 type InputMode = "choose" | "url" | "local";
@@ -23,12 +24,7 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
     const [localFileName, setLocalFileName] = useState("");
     const [isChecking, setIsChecking] = useState(true);
 
-    const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
-
-    const isAutoProcessRef = useRef(isAutoProcess);
-    useEffect(() => {
-        isAutoProcessRef.current = isAutoProcess;
-    }, [isAutoProcess]);
+    const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
     const projectPathRef = useRef(projectPath);
     const videoInfoRef = useRef(videoInfo);
@@ -84,9 +80,6 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
                             videoInfo: videoInfoRef.current,
                             status: 'completed'
                         });
-                        if (isAutoProcessRef.current && onComplete) {
-                            onComplete();
-                        }
                     }
                 } else {
                     alert("Tải xuống thất bại!");
@@ -108,9 +101,6 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
                             localFile: { name: localFileName, path: localFilePath },
                             status: 'completed'
                         });
-                        if (isAutoProcessRef.current && onComplete) {
-                            onComplete();
-                        }
                     }
                 } else {
                     alert("Import video thất bại!");
@@ -133,12 +123,7 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
             const info = await window.api.getVideoInfo(url);
             if (info) {
                 setVideoInfo(info);
-                if (isAutoProcess && projectPath) {
-                    setPhase("downloading");
-                    window.api.downloadVideo(info.url, projectPath);
-                } else {
-                    setPhase("review");
-                }
+                setPhase("review");
             } else {
                 alert("Không tìm thấy thông tin video hoặc URL không hợp lệ");
             }
@@ -213,7 +198,7 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
     if (isChecking) {
         return (
             <div className="flex items-center justify-center h-40">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -289,7 +274,7 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
                             </Button>
                         </div>
                         <Button onClick={handleUrlSubmit} disabled={isProcessing}>
-                            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tiếp tục"}
+                            {isProcessing ? <Spinner className="w-4 h-4 animate-spin" /> : "Tiếp tục"}
                         </Button>
                     </div>
                 </div>
@@ -446,7 +431,7 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
                                 disabled={isResetting}
                             >
                                 {isResetting ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    <Spinner className="w-4 h-4 mr-2 animate-spin" />
                                 ) : (
                                     <RotateCcw className="w-4 h-4 mr-2" />
                                 )}

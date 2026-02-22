@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
     deleteProject: (id: string) => ipcRenderer.invoke('delete-project', id),
     updateProjectPin: (id: string, pinned: boolean) => ipcRenderer.invoke('update-project-pin', id, pinned),
     selectDirectory: () => ipcRenderer.invoke('select-directory'),
+    getHardwareInfo: () => ipcRenderer.invoke('get-hardware-info'),
 
     openSettingsWindow: () => ipcRenderer.invoke('open-settings-window'),
 

@@ -1,17 +1,17 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-	Loader2,
+	
 	Film,
 	CheckCircle2,
 	FileText,
 	AlertCircle,
 	Clapperboard,
 	FolderOpen,
-	RefreshCw,
-} from "lucide-react";
+	RefreshCw} from "lucide-react";
 import { VideoPlayer } from "./VideoPlayer";
 import { useProcessContext } from "@/stores/ProcessStore";
 
@@ -41,12 +41,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 	const [hasExistingFinal, setHasExistingFinal] = useState(false);
 	const [missingItem, setMissingItem] = useState("");
 
-	const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
-
-	const isAutoProcessRef = useRef(isAutoProcess);
-	useEffect(() => {
-		isAutoProcessRef.current = isAutoProcess;
-	}, [isAutoProcess]);
+	const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
 	useEffect(() => {
 		setGlobalProcessing(isProcessing);
@@ -95,9 +90,6 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 						if (r.existingFinal) {
 							setOutputPath(r.existingFinal);
 						}
-						if (isAutoProcessRef.current && onComplete) {
-							onComplete();
-						}
 					});
 			} else if (progressData.status === "error") {
 				setIsProcessing(false);
@@ -109,22 +101,6 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 		};
 	}, [projectPath, onComplete]);
 
-	const autoStartedRef = useRef(false);
-
-	useEffect(() => {
-		if (isAutoProcess && phase === "ready" && !autoStartedRef.current && projectPath) {
-			autoStartedRef.current = true;
-
-			if (hasExistingFinal) {
-				if (onComplete) onComplete();
-				return;
-			}
-
-			setTimeout(() => {
-				handleStartCreate();
-			}, 500);
-		}
-	}, [isAutoProcess, phase, hasExistingFinal, projectPath, onComplete]);
 
 	const handleStartCreate = () => {
 		if (!projectPath) return;
@@ -143,7 +119,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 	if (phase === "loading") {
 		return (
 			<div className='flex items-center justify-center h-full'>
-				<Loader2 className='w-8 h-8 animate-spin text-primary' />
+				<Spinner className='w-8 h-8 animate-spin text-primary' />
 			</div>
 		);
 	}
@@ -168,7 +144,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 		switch (progress.status) {
 			case "preparing":
 				return (
-					<Loader2 className='w-5 h-5 text-primary animate-spin' />
+					<Spinner className='w-5 h-5 text-primary animate-spin' />
 				);
 			case "processing":
 				return (
@@ -255,25 +231,6 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 						Ghép video gốc với audio đã tạo, giữ nguyên chất lượng
 						video ban đầu.
 					</p>
-				</div>
-
-				{ }
-				<div className='w-full bg-primary/5 border border-primary/10 rounded-xl p-4 space-y-2'>
-					<div className='flex items-center gap-2 text-sm font-medium'>
-						<Clapperboard className='w-4 h-4 text-primary' />
-						<span>Xử lý video</span>
-					</div>
-					<ul className='text-xs text-muted-foreground pl-6 space-y-1 list-disc'>
-						<li>Cắt video theo timestamp gốc SRT</li>
-						<li>Giữ nguyên các đoạn trống (không có phụ đề)</li>
-						<li>Tăng tốc audio tối đa x1.3 nếu dài hơn video</li>
-						<li>Giảm tốc video nếu audio vẫn dài hơn</li>
-						<li>Ghép tất cả thành video final chất lượng gốc</li>
-						<li>
-							Re-render bằng HandBrake để đồng bộ khung hình & âm
-							thanh
-						</li>
-					</ul>
 				</div>
 
 				{ }

@@ -253,3 +253,16 @@ body {
     background: transparent;
   }
 }
+
+/* Gradient border animation */
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes gradient-spin {
+  to {
+    --gradient-angle: 360deg;
+  }
+}

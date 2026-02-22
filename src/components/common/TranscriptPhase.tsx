@@ -1,13 +1,16 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, Play, CheckCircle2, RotateCcw, Volume2, Pause, Cpu, Zap, Cloud, Download, Check, Sparkles, ArrowRight, Globe } from "lucide-react";
+import {  FileText, Play, CheckCircle2, RotateCcw, Volume2, Pause, Cpu, Zap, Cloud, Download, Check, Sparkles, ArrowRight, Globe } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { parseSrt, formatTimeShort, timeToSeconds, type SrtEntry, WHISPER_LANGUAGES, LANGUAGE_TO_COUNTRY } from "@/lib/utils";
 import ReactCountryFlag from "react-country-flag";
 import { useProcessContext } from "@/stores/ProcessStore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+import { useHardwareStore } from "@/stores/HardwareStore";
 
 type TranscriptEngine = 'whisper-cpu' | 'whisper-gpu' | 'assemblyai';
 
@@ -39,8 +42,7 @@ const ENGINES: EngineOption[] = [
         color: 'text-blue-500',
         bgColor: 'bg-blue-500/10',
         borderColor: 'border-blue-500/50',
-        disabled: false,
-    },
+        disabled: false},
     {
         id: 'whisper-gpu',
         name: 'Whisper',
@@ -50,8 +52,7 @@ const ENGINES: EngineOption[] = [
         color: 'text-green-500',
         bgColor: 'bg-green-500/10',
         borderColor: 'border-green-500/50',
-        disabled: false,
-    },
+        disabled: false},
     {
         id: 'assemblyai',
         name: 'AssemblyAI',
@@ -61,8 +62,7 @@ const ENGINES: EngineOption[] = [
         color: 'text-purple-500',
         bgColor: 'bg-purple-500/10',
         borderColor: 'border-purple-500/50',
-        disabled: true,
-    },
+        disabled: true},
 ];
 
 export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => {
@@ -71,8 +71,7 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
     const [progress, setProgress] = useState<TranscriptProgress>({
         status: "idle",
         progress: 0,
-        detail: "",
-    });
+        detail: ""});
     const [srtEntries, setSrtEntries] = useState<SrtEntry[]>([]);
     const [srtPath, setSrtPath] = useState("");
     const [projectPath, setProjectPath] = useState("");
@@ -80,23 +79,18 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
     const [audioUrl, setAudioUrl] = useState<string>("");
     const [isPlaying, setIsPlaying] = useState(false);
     const [activeSegment, setActiveSegment] = useState<number | null>(null);
+    const { hasNvidiaGpu } = useHardwareStore();
 
     const [selectedEngine, setSelectedEngine] = useState<TranscriptEngine>('whisper-cpu');
     const [engineStatus, setEngineStatus] = useState<Record<string, boolean>>({
         cpu: false,
-        gpu: false,
-    });
+        gpu: false});
     const [models, setModels] = useState<any[]>([]);
     const [activeModel, setActiveModel] = useState<string>("");
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState("auto");
 
-    const { setIsProcessing: setGlobalProcessing, isAutoProcess } = useProcessContext();
-
-    const isAutoProcessRef = useRef(isAutoProcess);
-    useEffect(() => {
-        isAutoProcessRef.current = isAutoProcess;
-    }, [isAutoProcess]);
+    const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
     useEffect(() => {
         setGlobalProcessing(phase === "processing" || isOptimizing);
@@ -172,10 +166,6 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
                 setSrtEntries(parseSrt(result.srtContent));
                 setSrtPath(result.srtPath);
                 setPhase("done");
-
-                if (isAutoProcessRef.current && onComplete) {
-                    onComplete();
-                }
             }
         });
 
@@ -226,14 +216,6 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
         };
     }, [audioUrl, srtEntries]);
 
-    const autoStartedRef = useRef(false);
-
-    useEffect(() => {
-        if (isAutoProcess && phase === "idle" && !autoStartedRef.current && srtEntries.length === 0 && projectPath && selectedEngine) {
-            autoStartedRef.current = true;
-            handleStartTranscript();
-        }
-    }, [isAutoProcess, phase, srtEntries, projectPath, selectedEngine]);
 
     const handleStartTranscript = () => {
         if (!projectPath || !selectedEngine) return;
@@ -293,7 +275,7 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
     if (isChecking) {
         return (
             <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -313,8 +295,8 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
                             return (
                                 <button
                                     key={engine.id}
-                                    disabled={engine.disabled}
-                                    onClick={() => !engine.disabled && setSelectedEngine(engine.id)}
+                                    disabled={engine.disabled || (engine.id === 'whisper-gpu' && !hasNvidiaGpu)}
+                                    onClick={() => !(engine.disabled || (engine.id === 'whisper-gpu' && !hasNvidiaGpu)) && setSelectedEngine(engine.id)}
                                     className={`
                                         relative flex flex-col items-center text-center p-6 rounded-xl border-2 transition-all duration-200 cursor-pointer
                                         ${engine.disabled
@@ -347,9 +329,9 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
                                     </p>
 
                                     { }
-                                    {engine.disabled ? (
+                                    {engine.disabled || (engine.id === 'whisper-gpu' && !hasNvidiaGpu) ? (
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border">
-                                            Sắp có
+                                            {engine.id === 'whisper-gpu' && !hasNvidiaGpu ? "Không hỗ trợ GPU" : "Sắp có"}
                                         </span>
                                     ) : engine.id.startsWith("whisper") ? (
                                         <div
@@ -465,7 +447,7 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" onClick={handleOptimize} disabled={isOptimizing}>
                                 {isOptimizing ? (
-                                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                    <Spinner className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                                 ) : (
                                     <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                                 )}
@@ -521,7 +503,7 @@ export const TranscriptPhase = ({ onComplete }: { onComplete?: () => void }) => 
                                         </div>
                                     ) : (
                                         <div className="text-center text-muted-foreground text-sm p-4">
-                                            <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin opacity-30" />
+                                            <Spinner className="w-8 h-8 mx-auto mb-2 animate-spin opacity-30" />
                                             <p>Đang tải audio...</p>
                                         </div>
                                     )}

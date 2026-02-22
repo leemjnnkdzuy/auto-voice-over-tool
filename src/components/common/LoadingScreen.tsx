@@ -1,6 +1,7 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import {  CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/logo.svg";
 
@@ -14,8 +15,7 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
     const [progress, setProgress] = useState<SetupProgress>({
         status: "checking",
         progress: 0,
-        detail: "Đang kiểm tra môi trường...",
-    });
+        detail: "Đang kiểm tra môi trường..."});
     const [error, setError] = useState(false);
 
     useEffect(() => {
@@ -45,8 +45,7 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
         setProgress({
             status: "checking",
             progress: 0,
-            detail: "Đang thử lại...",
-        });
+            detail: "Đang thử lại..."});
         window.api.setupEnvironment();
     };
 
@@ -70,7 +69,7 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
                     ) : progress.status === "ready" ? (
                         <CheckCircle2 className="w-5 h-5 text-green-500 animate-in fade-in zoom-in" />
                     ) : (
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        <Spinner className="w-5 h-5 animate-spin text-primary" />
                     )}
                     <span className="text-sm text-muted-foreground">
                         {progress.detail}
