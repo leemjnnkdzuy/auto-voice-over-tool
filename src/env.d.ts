@@ -12,7 +12,8 @@ interface Window {
         getPinnedPath: () => Promise<string>;
         setPinnedPath: (path: string) => Promise<boolean>;
 
-        // API Key management
+        openSettingsWindow: () => Promise<void>;
+
         getApiKey: (provider: string) => Promise<string>;
         setApiKey: (provider: string, key: string) => Promise<boolean>;
         createProjectFolder: (basePath: string, projectName: string) => Promise<boolean>;
@@ -24,33 +25,43 @@ interface Window {
         onDownloadComplete: (callback: (success: boolean) => void) => void;
         removeDownloadListeners: () => void;
 
-        // Environment
         checkEnvironment: () => Promise<boolean>;
         setupEnvironment: () => void;
         onSetupProgress: (callback: (progress: any) => void) => void;
         removeSetupListeners: () => void;
 
-        // Transcription
         getExistingSrt: (projectPath: string) => Promise<{ srtPath: string; srtContent: string } | null>;
         transcribeAudio: (projectPath: string, engine?: string) => void;
         onTranscriptProgress: (callback: (progress: any) => void) => void;
         onTranscriptComplete: (callback: (result: any) => void) => void;
         removeTranscriptListeners: () => void;
 
-        // Audio playback
         readAudioFile: (projectPath: string) => Promise<{ buffer: ArrayBuffer; mimeType: string } | null>;
 
-        // Engine check
         checkWhisperEngine: (engine: string) => Promise<boolean>;
 
-        // SRT optimization
+        getWhisperDownloadStatus: () => Promise<{ modelId: string | null; percent: number }>;
+        listWhisperModels: () => Promise<Array<{
+            id: string;
+            name: string;
+            fileName: string;
+            disk: string;
+            mem: string;
+            downloaded: boolean;
+            active: boolean;
+        }>>;
+        downloadWhisperModel: (modelId: string) => void;
+        onWhisperModelDownloadProgress: (callback: (progress: { modelId: string; percent: number; done?: boolean; success?: boolean }) => void) => void;
+        removeWhisperModelListeners: () => void;
+        deleteWhisperModel: (modelId: string) => Promise<boolean>;
+        getActiveWhisperModel: () => Promise<string>;
+        setActiveWhisperModel: (modelId: string) => Promise<boolean>;
+
         optimizeSrt: (srtPath: string) => Promise<{ srtContent: string } | null>;
 
-        // Translation
         saveTranslatedSrt: (projectPath: string, lang: string, content: string) => Promise<string | null>;
         getTranslatedSrt: (projectPath: string, lang: string) => Promise<string | null>;
 
-        // Edge TTS
         generateAudio: (projectPath: string, lang: string) => void;
         generateSingleAudio: (projectPath: string, lang: string, targetIndex: number) => Promise<boolean>;
         onAudioGenerateProgress: (callback: (progress: any) => void) => void;
@@ -59,12 +70,18 @@ interface Window {
         readGeneratedAudio: (filePath: string) => Promise<string | null>;
         readVideoFile: (filePath: string) => Promise<string | null>;
 
-        // Final Video
         checkFinalVideoReady: (projectPath: string) => Promise<{ ready: boolean; missing?: string; existingFinal?: string | null }>;
         createFinalVideo: (projectPath: string) => void;
         onFinalVideoProgress: (callback: (progress: any) => void) => void;
         removeFinalVideoListeners: () => void;
         openInExplorer: (filePath: string) => Promise<boolean>;
         openFile: (filePath: string) => Promise<boolean>;
+        checkProjectPhases: (projectPath: string) => Promise<{
+            download: boolean;
+            transcript: boolean;
+            translate: boolean;
+            audio: boolean;
+            final: boolean;
+        }>;
     };
 }

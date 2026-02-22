@@ -12,6 +12,7 @@ import {
     Music,
     Square,
     RefreshCw,
+    ArrowRight,
 } from "lucide-react";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { parseSrt, TARGET_LANGUAGES, type SrtEntry } from "@/lib/utils";
@@ -88,7 +89,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                 const existingAudio = await window.api.listGeneratedAudio(project.path);
                 if (existingAudio && existingAudio.length > 0) {
                     setAudioFiles(existingAudio);
-                    // Mark existing audio entries as done
                     const statuses = new Map<number, EntryAudioStatus>();
                     entries.forEach(entry => {
                         const baseName = `${String(entry.index).padStart(4, '0')}`;
@@ -112,7 +112,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
         window.api.onAudioGenerateProgress((progressData: AudioProgress) => {
             setProgress(progressData);
 
-            // Update per-entry status
             if (progressData.entryIndex !== undefined && progressData.entryStatus) {
                 setEntryStatuses(prev => {
                     const next = new Map(prev);
@@ -133,9 +132,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                     window.api.listGeneratedAudio(projectPath).then(files => {
                         setAudioFiles(files);
 
-                        // If it's a global done (not a single item retry done)
                         if (progressData.entryIndex === undefined) {
-                            // Check for failed entries for auto-retry
                             setEntryStatuses(currentStatuses => {
                                 const failedIndices = Array.from(currentStatuses.entries())
                                     .filter(([_, s]) => s === 'failed')
@@ -153,12 +150,9 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                 return currentStatuses;
                             });
                         } else {
-                            // It's a single item done
                             if (retryItemsQueueRef.current.length > 0) {
-                                // We are in a batch retry process
                                 retryItemsQueueRef.current = retryItemsQueueRef.current.filter(id => id !== progressData.entryIndex);
                                 if (retryItemsQueueRef.current.length === 0) {
-                                    // Batch retry finished
                                     if (isAutoProcessRef.current && onComplete) {
                                         onComplete();
                                     }
@@ -169,7 +163,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                 }
             } else if (progressData.status === 'error') {
                 setIsGenerating(false);
-                // Also handle error in batch retry
                 if (progressData.entryIndex !== undefined && retryItemsQueueRef.current.length > 0) {
                     retryItemsQueueRef.current = retryItemsQueueRef.current.filter(id => id !== progressData.entryIndex);
                     if (retryItemsQueueRef.current.length === 0 && isAutoProcessRef.current && onComplete) {
@@ -190,7 +183,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
         if (isAutoProcess && phase === "ready" && !autoStartedRef.current && translatedEntries.length > 0 && translatedLang && projectPath) {
             autoStartedRef.current = true;
 
-            // If already complete, just proceed
             const doneCount = Array.from(entryStatuses.values()).filter(s => s === 'done').length;
             if (audioFiles.length > 0 && doneCount >= translatedEntries.length) {
                 if (onComplete) onComplete();
@@ -208,7 +200,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
         setIsGenerating(true);
         retryCountRef.current = 0;
         setProgress(null);
-        // Reset all statuses to pending
         const statuses = new Map<number, EntryAudioStatus>();
         translatedEntries.forEach(entry => {
             statuses.set(entry.index, 'pending');
@@ -297,7 +288,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
     return (
         <TooltipProvider>
             <div className="flex flex-col p-4 gap-4 max-w-7xl w-full mx-auto h-full overflow-hidden">
-                {/* Header */}
+                { }
                 <div className="flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                         <Volume2 className="w-5 h-5 text-primary" />
@@ -321,27 +312,36 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                             </p>
                         </div>
                     </div>
-                    <Button
-                        size="sm"
-                        className="gap-2"
-                        onClick={handleStartGenerate}
-                        disabled={isGenerating}
-                    >
-                        {isGenerating ? (
-                            <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                Đang tạo...
-                            </>
-                        ) : (
-                            <>
-                                <Music className="w-3.5 h-3.5" />
-                                {hasAnyAudio ? "Tạo lại" : "Bắt đầu tạo"}
-                            </>
+                    <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            variant={hasAnyAudio ? "outline" : "default"}
+                            className="gap-2"
+                            onClick={handleStartGenerate}
+                            disabled={isGenerating}
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    Đang tạo...
+                                </>
+                            ) : (
+                                <>
+                                    <Music className="w-3.5 h-3.5" />
+                                    {hasAnyAudio ? "Tạo lại" : "Bắt đầu tạo"}
+                                </>
+                            )}
+                        </Button>
+                        {onComplete && hasAnyAudio && (
+                            <Button size="sm" onClick={onComplete} className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm">
+                                Tiếp tục
+                                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                            </Button>
                         )}
-                    </Button>
+                    </div>
                 </div>
 
-                {/* Progress bar during generation */}
+                { }
                 {isGenerating && progress && (
                     <div className="shrink-0 space-y-1">
                         <Progress value={progress.progress} className="w-full h-2" />
@@ -351,7 +351,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                     </div>
                 )}
 
-                {/* Entry list */}
+                { }
                 <div className="flex-1 overflow-y-auto border rounded-xl">
                     <div className="divide-y">
                         {translatedEntries.map((entry, i) => {
@@ -370,7 +370,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         : 'hover:bg-muted/30'
                                         }`}
                                 >
-                                    {/* Play button / status icon */}
+                                    { }
                                     <div className="shrink-0 w-8 h-8 flex items-center justify-center">
                                         {status === 'generating' ? (
                                             <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -394,7 +394,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         )}
                                     </div>
 
-                                    {/* Text */}
+                                    { }
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs text-muted-foreground font-mono mb-0.5">
                                             #{entry.index} • {entry.startTime}
@@ -402,7 +402,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         <p className="text-sm truncate">{entry.text}</p>
                                     </div>
 
-                                    {/* Status indicator */}
+                                    { }
                                     <div className="shrink-0 relative w-12 h-8 flex items-center justify-end">
                                         <div className="absolute inset-0 flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                             <Tooltip delayDuration={100}>

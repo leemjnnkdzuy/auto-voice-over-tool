@@ -4,7 +4,6 @@ import fs from 'fs';
 import https from 'https';
 import { spawn } from 'child_process';
 
-// Bin directory: in dev mode use project root, in production use userData
 const isDev = !app.isPackaged;
 const BIN_DIR = isDev
     ? path.join(process.cwd(), 'bin')
@@ -20,7 +19,189 @@ const HANDBRAKE_DIR = path.join(BIN_DIR, 'handbrake');
 export const getYtDlpPath = () => path.join(YT_DLP_DIR, 'yt-dlp.exe');
 export const getFfmpegPath = () => path.join(FFMPEG_DIR, 'ffmpeg.exe');
 export const getHandBrakePath = () => path.join(HANDBRAKE_DIR, 'HandBrakeCLI.exe');
-export const getWhisperModelPath = () => path.join(MODELS_DIR, 'ggml-base.bin');
+const MODEL_CONFIG_PATH = path.join(MODELS_DIR, 'model-config.json');
+
+export interface WhisperModelInfo {
+    id: string;
+    name: string;
+    fileName: string;
+    url: string;
+    disk: string;
+    mem: string;
+    downloaded: boolean;
+    active: boolean;
+}
+
+export const WHISPER_MODELS = [
+    {
+        id: 'tiny',
+        name: 'Tiny',
+        fileName: 'ggml-tiny.bin',
+        url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin',
+        disk: '75 MiB',
+        mem: '~273 MB',
+    },
+    {
+        id: 'base',
+        name: 'Base',
+        fileName: 'ggml-base.bin',
+        url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+        disk: '142 MiB',
+        mem: '~388 MB',
+    },
+    {
+        id: 'small',
+        name: 'Small',
+        fileName: 'ggml-small.bin',
+        url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin',
+        disk: '466 MiB',
+        mem: '~852 MB',
+    },
+    {
+        id: 'medium',
+        name: 'Medium',
+        fileName: 'ggml-medium.bin',
+        url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin',
+        disk: '1.5 GiB',
+        mem: '~2.1 GB',
+    },
+    {
+        id: 'large',
+        name: 'Large',
+        fileName: 'ggml-large-v3-turbo.bin',
+        url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin',
+        disk: '2.9 GiB',
+        mem: '~3.9 GB',
+    },
+];
+
+const readModelConfig = (): { activeModel: string } => {
+    try {
+        if (fs.existsSync(MODEL_CONFIG_PATH)) {
+            return JSON.parse(fs.readFileSync(MODEL_CONFIG_PATH, 'utf-8'));
+        }
+    } catch { }
+    return { activeModel: 'base' };
+};
+
+const writeModelConfig = (config: { activeModel: string }) => {
+    ensureDir(MODELS_DIR);
+    fs.writeFileSync(MODEL_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+};
+
+export const getActiveModelId = (): string => {
+    return readModelConfig().activeModel;
+};
+
+export const setActiveModelId = (modelId: string): boolean => {
+    const model = WHISPER_MODELS.find(m => m.id === modelId);
+    if (!model) return false;
+    const modelPath = path.join(MODELS_DIR, model.fileName);
+    if (!fs.existsSync(modelPath)) return false;
+    writeModelConfig({ activeModel: modelId });
+    return true;
+};
+
+export const getWhisperModelPath = (): string => {
+    const config = readModelConfig();
+    const model = WHISPER_MODELS.find(m => m.id === config.activeModel);
+    if (model) {
+        const modelPath = path.join(MODELS_DIR, model.fileName);
+        if (fs.existsSync(modelPath)) return modelPath;
+    }
+    return path.join(MODELS_DIR, 'ggml-base.bin');
+};
+
+export const listWhisperModels = (): WhisperModelInfo[] => {
+    const config = readModelConfig();
+    return WHISPER_MODELS.map(m => ({
+        ...m,
+        downloaded: fs.existsSync(path.join(MODELS_DIR, m.fileName)),
+        active: m.id === config.activeModel,
+    }));
+};
+
+const activeDownloadConfig: { modelId: string | null; percent: number } = {
+    modelId: null,
+    percent: 0,
+};
+
+export const getWhisperDownloadStatus = () => {
+    return { modelId: activeDownloadConfig.modelId, percent: activeDownloadConfig.percent };
+};
+
+export const setWhisperDownloadStatus = (modelId: string | null, percent: number) => {
+    activeDownloadConfig.modelId = modelId;
+    activeDownloadConfig.percent = percent;
+};
+
+export const downloadWhisperModel = async (
+    modelId: string,
+    onProgress: (percent: number) => void,
+): Promise<boolean> => {
+    const model = WHISPER_MODELS.find(m => m.id === modelId);
+    if (!model) return false;
+
+    ensureDir(MODELS_DIR);
+    const destPath = path.join(MODELS_DIR, model.fileName);
+
+    if (fs.existsSync(destPath)) return true;
+
+    activeDownloadConfig.modelId = modelId;
+    activeDownloadConfig.percent = 0;
+
+    try {
+        await downloadFile(model.url, destPath, (percent) => {
+            activeDownloadConfig.percent = percent;
+            onProgress(percent);
+        });
+        activeDownloadConfig.modelId = null;
+        activeDownloadConfig.percent = 0;
+        return true;
+    } catch (err) {
+        console.error(`Failed to download model ${modelId}:`, err);
+        if (fs.existsSync(destPath)) {
+            try { fs.unlinkSync(destPath); } catch { }
+        }
+        activeDownloadConfig.modelId = null;
+        activeDownloadConfig.percent = 0;
+        return false;
+    }
+};
+
+export const deleteWhisperModel = (modelId: string): boolean => {
+    const downloadedCount = WHISPER_MODELS.filter(m =>
+        fs.existsSync(path.join(MODELS_DIR, m.fileName))
+    ).length;
+
+    if (downloadedCount <= 1) return false;
+
+    const model = WHISPER_MODELS.find(m => m.id === modelId);
+    if (!model) return false;
+
+    const modelPath = path.join(MODELS_DIR, model.fileName);
+    if (!fs.existsSync(modelPath)) return false;
+
+    const config = readModelConfig();
+    if (config.activeModel === modelId) {
+        const otherModel = WHISPER_MODELS.find(m =>
+            m.id !== modelId && fs.existsSync(path.join(MODELS_DIR, m.fileName))
+        );
+        if (otherModel) {
+            writeModelConfig({ activeModel: otherModel.id });
+        } else {
+            return false;
+        }
+    }
+
+    try {
+        fs.unlinkSync(modelPath);
+        return true;
+    } catch (err) {
+        console.error(`Failed to delete model ${modelId}:`, err);
+        return false;
+    }
+};
 
 export const getWhisperPath = (engine: 'cpu' | 'gpu' = 'cpu') => {
     if (engine === 'gpu') {
@@ -33,7 +214,6 @@ const YT_DLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt
 const FFMPEG_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip';
 const WHISPER_CPU_URL = 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-bin-x64.zip';
 const WHISPER_GPU_URL = 'https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.3/whisper-cublas-12.4.0-bin-x64.zip';
-const WHISPER_MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
 const HANDBRAKE_URL = 'https://github.com/HandBrake/HandBrake/releases/download/1.10.2/HandBrakeCLI-1.10.2-win-x86_64.zip';
 
 interface SetupProgress {
@@ -55,7 +235,7 @@ const ensureDir = (dir: string) => {
  */
 const downloadFile = (url: string, destPath: string, onProgress?: (percent: number) => void): Promise<void> => {
     return new Promise((resolve, reject) => {
-        const makeRequest = (currentUrl: string, redirectCount: number = 0) => {
+        const makeRequest = (currentUrl: string, redirectCount = 0) => {
             if (redirectCount > 10) {
                 reject(new Error('Too many redirects'));
                 return;
@@ -71,7 +251,6 @@ const downloadFile = (url: string, destPath: string, onProgress?: (percent: numb
             };
 
             https.get(options, (response) => {
-                // Handle redirects
                 if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
                     makeRequest(response.headers.location, redirectCount + 1);
                     return;
@@ -154,7 +333,6 @@ const extractExeFromZip = async (zipPath: string, destDir: string, exeName: stri
             proc.stderr.on('data', (data) => { console.error('Extract stderr:', data.toString()); });
 
             proc.on('close', () => {
-                // Clean up zip
                 if (fs.existsSync(zipPath)) {
                     fs.unlinkSync(zipPath);
                 }
@@ -179,7 +357,9 @@ export const isYtDlpReady = (): boolean => fs.existsSync(getYtDlpPath());
 export const isFfmpegReady = (): boolean => fs.existsSync(getFfmpegPath());
 export const isHandBrakeReady = (): boolean => fs.existsSync(getHandBrakePath());
 export const isWhisperReady = (): boolean => fs.existsSync(getWhisperPath('cpu'));
-export const isWhisperModelReady = (): boolean => fs.existsSync(getWhisperModelPath());
+export const isWhisperModelReady = (): boolean => {
+    return WHISPER_MODELS.some(m => fs.existsSync(path.join(MODELS_DIR, m.fileName)));
+};
 
 export const isWhisperEngineReady = (engine: 'cpu' | 'gpu'): boolean => {
     return fs.existsSync(getWhisperPath(engine));
@@ -235,16 +415,7 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
         ensureDir(WHISPER_CPU_DIR);
         ensureDir(WHISPER_GPU_DIR);
 
-        // Progress allocation:
-        // yt-dlp:           0-15%
-        // ffmpeg:          15-27%
-        // HandBrakeCLI:    27-38%
-        // whisper CPU:     38-48%
-        // whisper GPU:     48-60%
-        // whisper model:   60-95%
-        // done:            100%
 
-        // Step 1: yt-dlp
         if (!isYtDlpReady()) {
             onProgress({ status: 'downloading', progress: 0, detail: 'Đang tải yt-dlp...' });
             await downloadFile(YT_DLP_URL, getYtDlpPath(), (percent) => {
@@ -255,7 +426,6 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
             onProgress({ status: 'checking', progress: 15, detail: 'yt-dlp đã sẵn sàng.' });
         }
 
-        // Step 2: ffmpeg
         if (!isFfmpegReady()) {
             onProgress({ status: 'downloading', progress: 15, detail: 'Đang tải ffmpeg...' });
             const zipPath = path.join(FFMPEG_DIR, 'ffmpeg.zip');
@@ -273,7 +443,6 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
             onProgress({ status: 'checking', progress: 27, detail: 'ffmpeg đã sẵn sàng.' });
         }
 
-        // Step 2.5: HandBrakeCLI
         if (!isHandBrakeReady()) {
             onProgress({ status: 'downloading', progress: 27, detail: 'Đang tải HandBrakeCLI...' });
             const hbZipPath = path.join(HANDBRAKE_DIR, 'handbrake.zip');
@@ -291,7 +460,6 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
             onProgress({ status: 'checking', progress: 38, detail: 'HandBrakeCLI đã sẵn sàng.' });
         }
 
-        // Step 3: whisper.cpp (CPU)
         if (!isWhisperEngineReady('cpu')) {
             onProgress({ status: 'downloading', progress: 38, detail: 'Đang tải Whisper CPU...' });
             const whisperZipPath = path.join(WHISPER_CPU_DIR, 'whisper-cpu.zip');
@@ -309,7 +477,6 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
             onProgress({ status: 'checking', progress: 48, detail: 'Whisper CPU đã sẵn sàng.' });
         }
 
-        // Step 4: whisper.cpp (GPU - CUDA)
         if (!isWhisperEngineReady('gpu')) {
             onProgress({ status: 'downloading', progress: 48, detail: 'Đang tải Whisper GPU (CUDA)...' });
             const whisperGpuZipPath = path.join(WHISPER_GPU_DIR, 'whisper-gpu.zip');
@@ -327,12 +494,14 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
             onProgress({ status: 'checking', progress: 60, detail: 'Whisper GPU đã sẵn sàng.' });
         }
 
-        // Step 5: whisper model (ggml-base.bin ~148MB)
         if (!isWhisperModelReady()) {
             onProgress({ status: 'downloading', progress: 60, detail: 'Đang tải mô hình Whisper (base)...' });
-            await downloadFile(WHISPER_MODEL_URL, getWhisperModelPath(), (percent) => {
+            const baseModel = WHISPER_MODELS.find(m => m.id === 'base')!;
+            const baseModelPath = path.join(MODELS_DIR, baseModel.fileName);
+            await downloadFile(baseModel.url, baseModelPath, (percent) => {
                 onProgress({ status: 'downloading', progress: 60 + percent * 0.35, detail: `Đang tải mô hình Whisper... ${percent}%` });
             });
+            writeModelConfig({ activeModel: 'base' });
             onProgress({ status: 'downloading', progress: 95, detail: 'Mô hình Whisper đã tải xong!' });
         } else {
             onProgress({ status: 'checking', progress: 95, detail: 'Mô hình Whisper đã sẵn sàng.' });

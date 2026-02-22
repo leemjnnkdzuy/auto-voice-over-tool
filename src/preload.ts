@@ -7,11 +7,11 @@ contextBridge.exposeInMainWorld('api', {
     updateProjectPin: (id: string, pinned: boolean) => ipcRenderer.invoke('update-project-pin', id, pinned),
     selectDirectory: () => ipcRenderer.invoke('select-directory'),
 
-    // Config
+    openSettingsWindow: () => ipcRenderer.invoke('open-settings-window'),
+
     getPinnedPath: () => ipcRenderer.invoke('get-pinned-path'),
     setPinnedPath: (path: string) => ipcRenderer.invoke('set-pinned-path', path),
 
-    // API Key management
     getApiKey: (provider: string) => ipcRenderer.invoke('get-api-key', provider),
     setApiKey: (provider: string, key: string) => ipcRenderer.invoke('set-api-key', provider, key),
     createProjectFolder: (basePath: string, projectName: string) => ipcRenderer.invoke('create-project-folder', basePath, projectName),
@@ -26,7 +26,6 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.removeAllListeners('download-complete');
     },
 
-    // Environment setup
     checkEnvironment: () => ipcRenderer.invoke('check-environment'),
     setupEnvironment: () => ipcRenderer.send('setup-environment'),
     onSetupProgress: (callback: (progress: any) => void) => ipcRenderer.on('setup-progress', (_, progress) => callback(progress)),
@@ -34,7 +33,6 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.removeAllListeners('setup-progress');
     },
 
-    // Transcription
     getExistingSrt: (projectPath: string) => ipcRenderer.invoke('get-existing-srt', projectPath),
     transcribeAudio: (projectPath: string, engine?: string) => ipcRenderer.send('transcribe-audio', projectPath, engine),
     onTranscriptProgress: (callback: (progress: any) => void) => ipcRenderer.on('transcript-progress', (_, progress) => callback(progress)),
@@ -44,20 +42,24 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.removeAllListeners('transcript-complete');
     },
 
-    // Audio playback
     readAudioFile: (projectPath: string) => ipcRenderer.invoke('read-audio-file', projectPath),
 
-    // Engine check
     checkWhisperEngine: (engine: string) => ipcRenderer.invoke('check-whisper-engine', engine),
 
-    // SRT optimization
+    getWhisperDownloadStatus: () => ipcRenderer.invoke('get-whisper-download-status'),
+    listWhisperModels: () => ipcRenderer.invoke('list-whisper-models'),
+    downloadWhisperModel: (modelId: string) => ipcRenderer.invoke('download-whisper-model', modelId),
+    onWhisperModelDownloadProgress: (callback: (progress: any) => void) => ipcRenderer.on('whisper-model-download-progress', (_, progress) => callback(progress)),
+    removeWhisperModelListeners: () => ipcRenderer.removeAllListeners('whisper-model-download-progress'),
+    deleteWhisperModel: (modelId: string) => ipcRenderer.invoke('delete-whisper-model', modelId),
+    getActiveWhisperModel: () => ipcRenderer.invoke('get-active-whisper-model'),
+    setActiveWhisperModel: (modelId: string) => ipcRenderer.invoke('set-active-whisper-model', modelId),
+
     optimizeSrt: (srtPath: string) => ipcRenderer.invoke('optimize-srt', srtPath),
 
-    // Translation
     saveTranslatedSrt: (projectPath: string, lang: string, content: string) => ipcRenderer.invoke('save-translated-srt', projectPath, lang, content),
     getTranslatedSrt: (projectPath: string, lang: string) => ipcRenderer.invoke('get-translated-srt', projectPath, lang),
 
-    // Edge TTS
     generateAudio: (projectPath: string, lang: string) => ipcRenderer.send('generate-audio', projectPath, lang),
     generateSingleAudio: (projectPath: string, lang: string, targetIndex: number) => ipcRenderer.invoke('generate-single-audio', projectPath, lang, targetIndex),
     onAudioGenerateProgress: (callback: (progress: any) => void) => ipcRenderer.on('audio-generate-progress', (event, progress) => callback(progress)),
@@ -66,11 +68,11 @@ contextBridge.exposeInMainWorld('api', {
     readGeneratedAudio: (filePath: string) => ipcRenderer.invoke('read-generated-audio', filePath),
     readVideoFile: (filePath: string) => ipcRenderer.invoke('read-video-file', filePath),
 
-    // Final Video
     checkFinalVideoReady: (projectPath: string) => ipcRenderer.invoke('check-final-video-ready', projectPath),
     createFinalVideo: (projectPath: string) => ipcRenderer.send('create-final-video', projectPath),
     onFinalVideoProgress: (callback: (progress: any) => void) => ipcRenderer.on('final-video-progress', (_, progress) => callback(progress)),
     removeFinalVideoListeners: () => ipcRenderer.removeAllListeners('final-video-progress'),
     openInExplorer: (filePath: string) => ipcRenderer.invoke('open-in-explorer', filePath),
     openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
+    checkProjectPhases: (projectPath: string) => ipcRenderer.invoke('check-project-phases', projectPath),
 });

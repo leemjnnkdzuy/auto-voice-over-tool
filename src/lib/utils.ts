@@ -13,30 +13,23 @@ export interface SrtEntry {
 }
 
 export const parseSrt = (content: string): SrtEntry[] => {
-  // Normalize newlines to \n
   const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const entries: SrtEntry[] = [];
 
-  // Split by double newline (empty line)
-  // Some Whisper versions output just \n between blocks if configured compactly, but usually \n\n.
-  // The previous regex split(/\n\s*\n/) handles \n\n+ well.
   const blocks = normalized.trim().split(/\n\s*\n/);
 
   for (const block of blocks) {
     const lines = block.trim().split('\n');
-    // A valid block needs at least index, timestamp, and text (sometimes text is empty?)
     if (lines.length >= 2) {
       const indexLine = lines[0].trim();
       const timeLine = lines[1].trim();
 
-      // Validate index is a number
       const index = parseInt(indexLine, 10);
       if (isNaN(index)) continue;
 
       const timeMatch = timeLine.match(/(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})/);
 
       if (timeMatch) {
-        // The rest is text
         const text = lines.slice(2).join('\n').trim();
         entries.push({
           index,
@@ -52,13 +45,10 @@ export const parseSrt = (content: string): SrtEntry[] => {
 };
 
 export const formatTimeShort = (time: string): string => {
-  // "00:01:23,456" -> "01:23"
-  // "01:02:03,456" -> "01:02:03"
   if (!time) return "00:00";
 
   const parts = time.split(',')[0].split(':');
   if (parts.length === 3) {
-    // If hours is 00, remove it
     if (parts[0] === '00') {
       return `${parts[1]}:${parts[2]}`;
     }
@@ -68,7 +58,6 @@ export const formatTimeShort = (time: string): string => {
 };
 
 export const timeToSeconds = (time: string): number => {
-  // "00:00:05,000" -> 5.0
   if (!time) return 0;
 
   const [hms, ms] = time.replace(',', '.').split('.');
@@ -81,8 +70,6 @@ export const timeToSeconds = (time: string): number => {
     seconds = parts[0] * 60 + parts[1];
   }
 
-  // Determine ms correctly. SRT is usually milliseconds. 
-  // If input was "00:00:05,123", ms is "123". Need to treat as 0.123
   const milliseconds = ms ? parseFloat(`0.${ms}`) : 0;
 
   return seconds + milliseconds;

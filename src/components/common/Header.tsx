@@ -21,6 +21,14 @@ export const Header = () => {
 
     const [projectName, setProjectName] = useState("");
     const [projectDate, setProjectDate] = useState("");
+    const [projectPath, setProjectPath] = useState("");
+    const [phaseStatus, setPhaseStatus] = useState({
+        download: false,
+        transcript: false,
+        translate: false,
+        audio: false,
+        final: false,
+    });
 
     useEffect(() => {
         if (projectId) {
@@ -28,7 +36,7 @@ export const Header = () => {
                 const proj = projects.find(p => p.id === projectId);
                 if (proj) {
                     setProjectName(proj.name);
-                    // format date if available, proj.createdAt might be ISO string
+                    setProjectPath(proj.path);
                     if (proj.createdAt) {
                         try {
                             const date = new Date(proj.createdAt);
@@ -41,6 +49,31 @@ export const Header = () => {
             });
         }
     }, [projectId]);
+
+    useEffect(() => {
+        if (!projectPath) return;
+
+        const checkPhases = async () => {
+            try {
+                const status = await window.api.checkProjectPhases(projectPath);
+                setPhaseStatus(prev => {
+                    if (prev.download !== status.download ||
+                        prev.transcript !== status.transcript ||
+                        prev.translate !== status.translate ||
+                        prev.audio !== status.audio ||
+                        prev.final !== status.final) {
+                        return status;
+                    }
+                    return prev;
+                });
+            } catch {
+            }
+        };
+
+        checkPhases();
+        const intervalId = setInterval(checkPhases, 1000);
+        return () => clearInterval(intervalId);
+    }, [projectPath]);
 
     return (
         <header className="border-b bg-background px-6 py-3 flex items-center justify-between h-16 shrink-0 z-50 relative">
@@ -70,15 +103,15 @@ export const Header = () => {
                 >
                     <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="download" disabled={isProcessing}>1. Tải video</TabsTrigger>
-                        <TabsTrigger value="transcript" disabled={isProcessing}>2. Tạo phụ đề</TabsTrigger>
-                        <TabsTrigger value="translate" disabled={isProcessing}>3. Dịch phụ đề</TabsTrigger>
-                        <TabsTrigger value="audio" disabled={isProcessing}>4. Tạo audio</TabsTrigger>
-                        <TabsTrigger value="final" disabled={isProcessing}>5. Tạo video</TabsTrigger>
+                        <TabsTrigger value="transcript" disabled={isProcessing || !phaseStatus.download}>2. Tạo phụ đề</TabsTrigger>
+                        <TabsTrigger value="translate" disabled={isProcessing || !phaseStatus.transcript}>3. Dịch phụ đề</TabsTrigger>
+                        <TabsTrigger value="audio" disabled={isProcessing || !phaseStatus.translate}>4. Tạo audio</TabsTrigger>
+                        <TabsTrigger value="final" disabled={isProcessing || !phaseStatus.audio}>5. Tạo video</TabsTrigger>
                     </TabsList>
                 </Tabs>
             )}
 
-            {/* Spacer & Switch */}
+            { }
             <div className="flex items-center gap-2">
                 <Switch
                     id="auto-process"

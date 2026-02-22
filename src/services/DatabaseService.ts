@@ -32,11 +32,9 @@ export const connectDB = () => {
             )
         `);
 
-        // Migration for existing table
         try {
             db.exec('ALTER TABLE projects ADD COLUMN pinned INTEGER DEFAULT 0');
         } catch (e) {
-            // Column likely exists
         }
 
         return db;

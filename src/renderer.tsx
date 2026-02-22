@@ -12,7 +12,6 @@ const App = () => {
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // First check if environment is already set up
     window.api.checkEnvironment().then((ready) => {
       if (ready) {
         setIsReady(true);

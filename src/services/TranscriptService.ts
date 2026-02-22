@@ -58,7 +58,6 @@ const runWhisper = (
         const whisperPath = getWhisperPath(engine);
         const modelPath = getWhisperModelPath();
 
-        // whisper-cli outputs files as <output_file>.srt
         const outputBase = path.join(outputDir, outputName);
 
         const args = [
@@ -82,7 +81,6 @@ const runWhisper = (
             const text = data.toString();
             console.log('[whisper stderr]', text);
 
-            // Parse progress: whisper.cpp prints "whisper_full_with_state: progress =  XX%"
             const progressMatch = text.match(/progress\s*=\s*(\d+)%/);
             if (progressMatch) {
                 const pct = parseInt(progressMatch[1], 10);
@@ -166,7 +164,6 @@ export const transcribeAudio = async (
     engine: TranscriptEngine = 'whisper-cpu'
 ): Promise<{ srtPath: string; srtContent: string } | null> => {
     try {
-        // AssemblyAI placeholder
         if (engine === 'assemblyai') {
             onProgress({ status: 'error', progress: 0, detail: 'AssemblyAI chưa được hỗ trợ. Vui lòng chọn Whisper.' });
             return null;
@@ -174,7 +171,6 @@ export const transcribeAudio = async (
 
         const whisperVariant: 'cpu' | 'gpu' = engine === 'whisper-gpu' ? 'gpu' : 'cpu';
 
-        // Step 0: Auto-download engine if needed
         if (!isWhisperEngineReady(whisperVariant)) {
             onProgress({ status: 'downloading', progress: 0, detail: `Cần tải Whisper (${whisperVariant === 'gpu' ? 'GPU' : 'CPU'})...` });
             const downloaded = await downloadWhisperEngine(whisperVariant, (p) => {
@@ -190,7 +186,6 @@ export const transcribeAudio = async (
             }
         }
 
-        // Step 1: Find audio file
         onProgress({ status: 'preparing', progress: 15, detail: 'Đang tìm file âm thanh...' });
         const audioFile = findAudioFile(projectPath);
         if (!audioFile) {
@@ -200,7 +195,6 @@ export const transcribeAudio = async (
         console.log('Found audio file:', audioFile);
         onProgress({ status: 'preparing', progress: 18, detail: `Đã tìm thấy: ${path.basename(audioFile)}` });
 
-        // Step 2: Convert to WAV
         const transcriptDir = path.join(projectPath, 'transcript');
         if (!fs.existsSync(transcriptDir)) {
             fs.mkdirSync(transcriptDir, { recursive: true });
@@ -208,7 +202,6 @@ export const transcribeAudio = async (
 
         const wavPath = path.join(transcriptDir, 'audio_16k.wav');
 
-        // Skip conversion if WAV already exists and is recent
         if (!fs.existsSync(wavPath)) {
             onProgress({ status: 'converting', progress: 20, detail: 'Đang chuyển đổi âm thanh sang định dạng WAV...' });
             const ffmpegPath = getFfmpegPath();
@@ -221,7 +214,6 @@ export const transcribeAudio = async (
 
         onProgress({ status: 'converting', progress: 30, detail: 'Chuyển đổi âm thanh hoàn tất!' });
 
-        // Step 3: Run whisper
         onProgress({ status: 'transcribing', progress: 30, detail: 'Bắt đầu nhận dạng giọng nói...' });
 
         const videoId = path.basename(audioFile, path.extname(audioFile));
@@ -232,7 +224,6 @@ export const transcribeAudio = async (
             return null;
         }
 
-        // Step 4: Optimize SRT — re-segment at sentence boundaries
         onProgress({ status: 'transcribing', progress: 95, detail: 'Đang tối ưu phụ đề...' });
         const srtContent = optimizeSrtFile(srtPath);
         console.log('SRT optimized:', srtPath);

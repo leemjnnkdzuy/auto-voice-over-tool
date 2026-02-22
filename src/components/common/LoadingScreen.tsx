@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/logo.svg";
 
 interface SetupProgress {
     status: string;
@@ -18,12 +19,10 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        // Listen for setup progress from main process
         window.api.onSetupProgress((data: SetupProgress) => {
             setProgress(data);
 
             if (data.status === "ready") {
-                // Small delay to show completion state
                 setTimeout(() => {
                     onReady();
                 }, 800);
@@ -34,7 +33,6 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
             }
         });
 
-        // Trigger environment setup
         window.api.setupEnvironment();
 
         return () => {
@@ -54,14 +52,15 @@ export const LoadingScreen = ({ onReady }: { onReady: () => void }) => {
 
     return (
         <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-8 p-8">
-            {/* Logo / Title */}
-            <div className="text-center space-y-2">
-                <p className="text-muted-foreground text-sm">
+            {}
+            <div className="text-center space-y-4 flex flex-col items-center">
+                <img src={logo} alt="MC Auto Dubbing Logo" className="w-24 h-24 object-contain animate-pulse" />
+                <p className="text-muted-foreground text-sm font-medium">
                     Đang chuẩn bị môi trường làm việc...
                 </p>
             </div>
 
-            {/* Progress Section */}
+            {}
             <div className="w-full max-w-md space-y-4">
                 <Progress value={progress.progress} className="h-2" />
 

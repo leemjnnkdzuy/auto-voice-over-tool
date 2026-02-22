@@ -51,23 +51,19 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
             setTranslatedEntries([]);
             setPhase("idle");
 
-            // Check API key
             const apiKey = await window.api.getApiKey("deepseek");
             setHasApiKey(!!apiKey);
 
-            // Get project info
             const projects = await window.api.getProjects();
             const project = projects.find((p: any) => p.id === id);
             if (project) {
                 setProjectPath(project.path);
 
-                // Check existing SRT
                 const existing = await window.api.getExistingSrt(project.path);
                 if (existing) {
                     const entries = parseSrt(existing.srtContent);
                     setSrtEntries(entries);
 
-                    // Check if translation exists for current lang
                     const translatedContent = await window.api.getTranslatedSrt(project.path, selectedLang);
                     if (translatedContent) {
                         setTranslatedEntries(parseSrt(translatedContent));
@@ -85,7 +81,6 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
         init();
     }, [id]);
 
-    // Check translation when language changes
     useEffect(() => {
         const checkTranslation = async () => {
             if (!projectPath || phase === "translating" || phase === "no-srt") return;
@@ -106,8 +101,6 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
 
     useEffect(() => {
         if (isAutoProcess && phase === "idle" && !autoStartedRef.current && srtEntries.length > 0 && hasApiKey && projectPath) {
-            // Check if already done (the init block finds translatedSrt and sets to "done")
-            // Wait, the init hook sets to "done" if it exists. So it'll only auto start if idle.
             autoStartedRef.current = true;
             setTimeout(() => {
                 handleStartTranslate();
@@ -124,11 +117,9 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
             const apiKey = await window.api.getApiKey("deepseek");
             const langName = TARGET_LANGUAGES.find(l => l.code === selectedLang)?.name || selectedLang;
 
-            // Configuration
             const BATCH_SIZE = 20;
             const CONCURRENCY = 5;
 
-            // Prepare batches
             const batches: SrtEntry[][] = [];
             for (let i = 0; i < srtEntries.length; i += BATCH_SIZE) {
                 batches.push(srtEntries.slice(i, i + BATCH_SIZE));
@@ -137,7 +128,6 @@ export const TranslatePhase = ({ onComplete }: { onComplete?: () => void }) => {
             let completedCount = 0;
             const translatedMap = new Map<number, string>();
 
-            // Worker function
             const processBatch = async (batch: SrtEntry[]) => {
                 const textsToTranslate = batch.map(e => e.text).join("\n---\n");
 
@@ -198,7 +188,6 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 }
             };
 
-            // Run with concurrency limit
             const queue = [...batches];
             const activeWorkers: Promise<void>[] = [];
 
@@ -216,13 +205,11 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 }
             }
 
-            // Reassemble in order
             const finalTranslated: SrtEntry[] = srtEntries.map(entry => ({
                 ...entry,
                 text: translatedMap.get(entry.index) || entry.text
             }));
 
-            // Save to file
             const srtContent = stringifySrt(finalTranslated);
             await window.api.saveTranslatedSrt(projectPath, selectedLang, srtContent);
 
@@ -249,7 +236,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
     return (
         <div className="flex flex-col items-center justify-center p-4 space-y-4 max-w-7xl w-full mx-auto h-full">
 
-            {/* NO SRT STATE */}
+            { }
             {phase === "no-srt" && (
                 <div className="text-center space-y-4 animate-in fade-in duration-300">
                     <FileText className="w-16 h-16 text-muted-foreground/30 mx-auto" />
@@ -260,7 +247,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 </div>
             )}
 
-            {/* IDLE STATE */}
+            { }
             {phase === "idle" && srtEntries.length > 0 && (
                 <div className="w-full max-w-lg animate-in fade-in duration-300 space-y-6">
                     <div className="text-center space-y-2">
@@ -271,7 +258,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
                         </p>
                     </div>
 
-                    {/* API Key Status */}
+                    { }
                     {!hasApiKey && (
                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-center">
                             <p className="text-sm text-amber-600 font-medium">
@@ -283,7 +270,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
                         </div>
                     )}
 
-                    {/* Language Selection */}
+                    { }
                     <div className="space-y-3">
                         <h3 className="text-sm font-semibold">Chọn ngôn ngữ đích</h3>
                         <div className="w-full">
@@ -325,7 +312,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
                         </div>
                     </div>
 
-                    {/* Start Button */}
+                    { }
                     <Button
                         className="w-full gap-2"
                         size="lg"
@@ -339,7 +326,7 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 </div>
             )}
 
-            {/* TRANSLATING STATE */}
+            { }
             {phase === "translating" && (
                 <div className="w-full max-w-lg space-y-6 animate-in fade-in duration-300">
                     <div className="text-center space-y-2">
@@ -352,10 +339,10 @@ ${MINECRAFT_GLOSSARY(langName)}`
                 </div>
             )}
 
-            {/* DONE STATE */}
+            { }
             {phase === "done" && translatedEntries.length > 0 && (
                 <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-300 overflow-hidden">
-                    {/* Header */}
+                    { }
                     <div className="flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -368,15 +355,23 @@ ${MINECRAFT_GLOSSARY(langName)}`
                                 </p>
                             </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => {
-                            setTranslatedEntries([]);
-                            setPhase("idle");
-                        }}>
-                            Dịch lại
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => {
+                                setTranslatedEntries([]);
+                                setPhase("idle");
+                            }}>
+                                Dịch lại
+                            </Button>
+                            {onComplete && (
+                                <Button size="sm" onClick={onComplete} className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm">
+                                    Tiếp tục
+                                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Side by side comparison */}
+                    { }
                     <div className="flex-1 overflow-y-auto border rounded-xl">
                         <div className="divide-y">
                             {translatedEntries.map((entry, i) => (

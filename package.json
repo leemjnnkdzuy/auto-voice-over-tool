@@ -65,6 +65,7 @@
     "tailwind-merge": "^3.4.1",
     "tailwindcss": "^4.1.18",
     "utf-8-validate": "^6.0.6",
-    "ytdl-core": "^4.11.5"
+    "ytdl-core": "^4.11.5",
+    "zustand": "^5.0.11"
   }
 }

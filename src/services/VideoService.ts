@@ -3,7 +3,6 @@ import path from 'path';
 import fs from 'fs';
 import { getYtDlpPath, getFfmpegPath } from './EnvironmentService';
 
-// Helper to ensure directory exists
 const ensureDir = (dir: string) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 };
@@ -100,7 +99,6 @@ export const downloadVideo = async (
                 onProgress({ video: videoProgress, audio: audioProgress });
             };
 
-            // Parse yt-dlp progress from output
             const parseProgress = (data: string): number | null => {
                 const match = data.match(/\[download\]\s+(\d+\.?\d*)%/);
                 if (match) {
@@ -109,7 +107,6 @@ export const downloadVideo = async (
                 return null;
             };
 
-            // Download video only (no audio)
             const videoProc = spawn(ytDlpPath, [
                 '-f', 'bestvideo[ext=mp4]/bestvideo',
                 '--ffmpeg-location', ffmpegPath,
@@ -129,7 +126,6 @@ export const downloadVideo = async (
             });
 
             videoProc.stderr.on('data', (data) => {
-                // yt-dlp often writes progress to stderr/stdout depending on version
                 const text = data.toString();
                 const pct = parseProgress(text);
                 if (pct !== null) {
@@ -149,12 +145,10 @@ export const downloadVideo = async (
             videoProc.on('error', (err) => {
                 console.error('Video download error:', err);
                 videoFinished = true; // Mark finished to avoid hanging? Or resolve false?
-                // Let's assume we want to finish both attempts.
                 videoProgress = 0; // or 100?
                 checkDone();
             });
 
-            // Download audio only
             const audioProc = spawn(ytDlpPath, [
                 '-f', 'bestaudio[ext=m4a]/bestaudio',
                 '--ffmpeg-location', ffmpegPath,

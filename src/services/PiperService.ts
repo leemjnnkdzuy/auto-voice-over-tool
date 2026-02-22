@@ -2,7 +2,6 @@ import path from 'path';
 import fs from 'fs';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
-// Edge TTS voice mapping: lang code -> voice name
 export interface VoiceConfig {
     voice: string;
     label: string;
@@ -110,7 +109,7 @@ export const generateAllAudio = async (
     langCode: string,
     outputDir: string,
     onProgress: (p: TTSProgress) => void,
-    _concurrency: number = 1
+    _concurrency = 1
 ): Promise<string[]> => {
     ensureDir(outputDir);
 
@@ -127,7 +126,6 @@ export const generateAllAudio = async (
         const fileName = `${String(entry.index).padStart(4, '0')}.mp3`;
         const outputPath = path.join(outputDir, fileName);
 
-        // Notify: starting this entry
         onProgress({
             status: 'generating',
             progress: Math.round((i / entries.length) * 100),
@@ -144,7 +142,6 @@ export const generateAllAudio = async (
             results[i] = outputPath;
         }
 
-        // Notify: this entry done/failed
         onProgress({
             status: 'generating',
             progress: Math.round(((i + 1) / entries.length) * 100),

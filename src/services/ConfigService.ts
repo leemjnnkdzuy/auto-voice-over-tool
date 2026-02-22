@@ -64,7 +64,6 @@ export const createProjectFolder = (basePath: string, projectName: string): bool
 
         fs.mkdirSync(targetDir, { recursive: true });
 
-        // Create initial project.json
         const metadata = {
             id: Date.now().toString(), // Simple ID, or passed from DB?
             name: projectName,
@@ -111,7 +110,6 @@ export const saveProjectMetadata = (projectPath: string, metadata: any): boolean
     try {
         const configFile = path.join(projectPath, 'project.json');
 
-        // Merge with existing if possible
         let existing = {};
         if (fs.existsSync(configFile)) {
             try {

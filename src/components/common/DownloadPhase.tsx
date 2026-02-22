@@ -48,7 +48,6 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                 if (project && mounted) {
                     setProjectPath(project.path);
 
-                    // Check metadata
                     const metadata = await window.api.getProjectMetadata(project.path);
                     if (metadata && metadata.status === 'completed' && metadata.videoInfo) {
                         setVideoInfo(metadata.videoInfo);
@@ -63,7 +62,6 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
         };
         fetchProject();
 
-        // Listeners
         window.api.onDownloadProgress((progress) => {
             if (mounted) setDownloadProgress(progress);
         });
@@ -72,7 +70,6 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
             if (mounted) {
                 if (success) {
                     setPhase("completed");
-                    // Save metadata on success using current refs
                     if (projectPathRef.current && videoInfoRef.current) {
                         window.api.saveProjectMetadata(projectPathRef.current, {
                             videoInfo: videoInfoRef.current,
@@ -152,7 +149,6 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
         setUrl("");
         setVideoInfo(null);
         setDownloadProgress({ video: 0, audio: 0 });
-        // Reset metadata? Maybe not until they download something new.
     };
 
     if (isChecking) {
@@ -193,13 +189,13 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                             {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Tiếp tục"}
                         </Button>
                     </div>
-                    {/* Recent or Helper text could go here */}
+                    {}
                 </div>
             )}
 
             {phase === "review" && videoInfo && (
                 <div className="w-full h-full min-h-[400px] grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Left Column: Thumbnail & Actions */}
+                    {}
                     <div className="md:col-span-1 flex flex-col gap-4">
                         <div className="aspect-video w-full rounded-xl overflow-hidden shadow-xl border bg-black relative group shrink-0">
                             <img
@@ -231,7 +227,7 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                         </div>
                     </div>
 
-                    {/* Right Column: Details */}
+                    {}
                     <div className="md:col-span-2 flex flex-col h-full bg-card border rounded-xl shadow-sm overflow-hidden text-left">
                         <div className="p-6 flex-1 overflow-y-auto space-y-4">
                             <div>
@@ -266,7 +262,7 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                 </div>
             )}
 
-            {/* Completed / Review Downloaded State */}
+            {}
             {phase === "completed" && videoInfo && (
                 <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in zoom-in duration-300">
                     <div className="md:col-span-1 flex flex-col gap-4">
@@ -282,7 +278,7 @@ export const DownloadPhase = ({ onComplete }: { onComplete?: () => void }) => {
                         </div>
 
                         <div className="flex flex-col gap-2 mt-auto shrink-0">
-                            {/* Actions for completed state */}
+                            {}
                             {onComplete && (
                                 <Button size="lg" onClick={onComplete} className="w-full shadow-lg shadow-green-500/20 bg-green-600 hover:bg-green-700">
                                     Tiếp tục tạo phụ đề <ArrowRight className="w-4 h-4 ml-2" />

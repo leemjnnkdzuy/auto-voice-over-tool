@@ -1,12 +1,11 @@
 import { Route } from "react-router-dom";
 
-//Layouts
 import { NothingLayout } from "@/components/layouts/NothingLayout";
 import { HeaderLayout } from "@/components/layouts/HeaderLayout";
+import { SettingWindowLayout, SettingPage } from "@/components/layouts/SettingWindowLayout";
 
-//Pages
-import { HomePage } from "@/pages/HomePage";
-import { ProjectPage } from "@/pages/ProjectPage";
+import { HomePage } from "@/windows/main/HomePage";
+import { ProjectPage } from "@/windows/main/ProjectPage";
 
 const publicRoutes = [
 	{
@@ -18,6 +17,11 @@ const publicRoutes = [
 		path: "/project/:id",
 		component: ProjectPage,
 		layout: HeaderLayout,
+	},
+	{
+		path: "/settings/:tab",
+		component: SettingPage,
+		layout: SettingWindowLayout,
 	},
 ];
 

@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import { getFfmpegPath, getHandBrakePath } from './EnvironmentService';
-import { parseSrt, timeToSeconds } from '../lib/srt-utils';
+import { parseSrt, timeToSeconds } from '../lib/SrtOptimizer';
 
 export interface FinalVideoProgress {
     status: 'preparing' | 'processing' | 'concatenating' | 'rerendering' | 'done' | 'error';
@@ -180,7 +180,6 @@ const processSegment = async (
     const outputPath = path.join(tempDir, `seg_${String(segIndex).padStart(4, '0')}.mp4`);
     const duration = segment.videoDuration;
 
-    // ── Gap: re-encode video + keep original audio ──
     if (segment.type === 'gap') {
         const result = await runFfmpeg([
             '-y',
@@ -194,7 +193,6 @@ const processSegment = async (
         return result.success ? outputPath : null;
     }
 
-    // ── Dubbed: no TTS audio → video + silence ──
     if (!segment.audioPath || !segment.audioDuration || segment.audioDuration === 0) {
         const result = await runFfmpeg([
             '-y',
@@ -215,7 +213,6 @@ const processSegment = async (
     const audioDur = segment.audioDuration;
     const ratio = audioDur / videoDur;
 
-    // ── Case 1: Audio fits (shorter or equal) → pad with silence ──
     if (ratio <= 1.0) {
         const result = await runFfmpeg([
             '-y',
@@ -233,7 +230,6 @@ const processSegment = async (
         return result.success ? outputPath : null;
     }
 
-    // ── Case 2: Audio slightly longer (≤ 1.3x) → speed up audio only ──
     if (ratio <= 1.3) {
         const result = await runFfmpeg([
             '-y',
@@ -251,7 +247,6 @@ const processSegment = async (
         return result.success ? outputPath : null;
     }
 
-    // ── Case 3: Audio much longer (> 1.3x) → audio 1.3x + slow down video ──
     const adjustedAudioDur = audioDur / 1.3;
     const videoSlowFactor = adjustedAudioDur / videoDur;
     const targetDur = adjustedAudioDur;
@@ -310,12 +305,6 @@ const rerenderWithHandBrake = async (
 ): Promise<boolean> => {
     return new Promise((resolve) => {
         const handbrake = getHandBrakePath();
-        // Settings theo hướng dẫn:
-        // - Framerate: "Same as source" (không chỉ định --rate → tự lấy từ source)
-        // - Constant Framerate (--cfr) thay vì Peak Framerate
-        // - Encoder: NVENC H.264 (GPU acceleration)
-        // - Quality: 20 (chất lượng tốt)
-        // - Audio: AAC stereo, giữ nguyên sample rate từ source
         const args = [
             '-i', inputPath,
             '-o', outputPath,
@@ -333,7 +322,6 @@ const rerenderWithHandBrake = async (
 
         proc.stdout.on('data', (data) => {
             const line = data.toString();
-            // HandBrakeCLI outputs progress like: "Encoding: task 1 of 1, 45.23 %"
             const match = line.match(/(\d+\.?\d*)\s*%/);
             if (match && onProgress) {
                 onProgress(parseFloat(match[1]));
@@ -432,7 +420,6 @@ export const createFinalVideo = async (
         }
         fs.mkdirSync(tempDir, { recursive: true });
 
-        // Process segments with limited concurrency (NVENC session limit = ~3)
         const CONCURRENCY = 3;
         const segmentPaths: (string | null)[] = new Array(segments.length).fill(null);
         let completed = 0;
@@ -457,7 +444,6 @@ export const createFinalVideo = async (
             });
         };
 
-        // Parallel with concurrency limit
         const queue = segments.map((seg, idx) => ({ seg, idx }));
         const activeWorkers: Promise<void>[] = [];
 
@@ -513,7 +499,6 @@ export const createFinalVideo = async (
             return null;
         }
 
-        // ── Re-render with HandBrakeCLI for frame/audio sync ──
         onProgress({
             status: 'rerendering',
             progress: 92,
@@ -538,17 +523,14 @@ export const createFinalVideo = async (
         );
 
         if (rerenderSuccess && fs.existsSync(rerenderedPath)) {
-            // Replace the original concat output with the re-rendered version
             try {
                 fs.unlinkSync(outputPath);
                 fs.renameSync(rerenderedPath, outputPath);
             } catch (e) {
                 console.warn('Could not replace concat output with re-rendered:', e);
-                // Keep the re-rendered file as-is
             }
         } else {
             console.warn('HandBrake re-render failed, keeping original concat output');
-            // Clean up failed re-render file if exists
             if (fs.existsSync(rerenderedPath)) {
                 try { fs.unlinkSync(rerenderedPath); } catch { }
             }

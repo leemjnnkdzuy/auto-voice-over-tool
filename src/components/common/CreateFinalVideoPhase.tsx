@@ -62,7 +62,6 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 			}
 			setProjectPath(project.path);
 
-			// Check prerequisites
 			const checkResult = await window.api.checkFinalVideoReady(
 				project.path,
 			);
@@ -90,7 +89,6 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 			if (progressData.status === "done") {
 				setIsProcessing(false);
 				setHasExistingFinal(true);
-				// Refresh output path
 				window.api
 					.checkFinalVideoReady(projectPath)
 					.then((r: { existingFinal?: string | null }) => {
@@ -189,16 +187,15 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 		}
 	};
 
-	// Loading state
 	if (isProcessing) {
 		return (
 			<div className='flex flex-col items-center justify-center p-4 gap-6 max-w-4xl w-full mx-auto h-full'>
-				{/* Icon */}
+				{ }
 				<div className='w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center'>
 					<Clapperboard className='w-10 h-10 text-primary animate-pulse' />
 				</div>
 
-				{/* Title */}
+				{ }
 				<div className='text-center space-y-2'>
 					<h2 className='text-xl font-bold'>
 						Đang tạo video final...
@@ -208,7 +205,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 					</p>
 				</div>
 
-				{/* Progress */}
+				{ }
 				{progress && (
 					<div className='w-full max-w-md space-y-2'>
 						<div className='flex items-center gap-2'>
@@ -230,7 +227,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 					</div>
 				)}
 
-				{/* Error message */}
+				{ }
 				{progress?.status === "error" && (
 					<div className='w-full max-w-md bg-destructive/10 border border-destructive/20 rounded-xl p-4'>
 						<div className='flex items-center gap-2 text-sm text-destructive'>
@@ -243,16 +240,15 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 		);
 	}
 
-	// No final video yet state
 	if (!hasExistingFinal) {
 		return (
 			<div className='flex flex-col items-center justify-center p-4 gap-6 max-w-lg w-full mx-auto h-full'>
-				{/* Icon */}
+				{ }
 				<div className='w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center'>
 					<Film className='w-10 h-10 text-primary' />
 				</div>
 
-				{/* Title */}
+				{ }
 				<div className='text-center space-y-2'>
 					<h2 className='text-xl font-bold'>Tạo video final</h2>
 					<p className='text-sm text-muted-foreground'>
@@ -261,7 +257,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 					</p>
 				</div>
 
-				{/* Info card */}
+				{ }
 				<div className='w-full bg-primary/5 border border-primary/10 rounded-xl p-4 space-y-2'>
 					<div className='flex items-center gap-2 text-sm font-medium'>
 						<Clapperboard className='w-4 h-4 text-primary' />
@@ -280,7 +276,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 					</ul>
 				</div>
 
-				{/* Create button */}
+				{ }
 				<Button className='w-full gap-2' onClick={handleStartCreate}>
 					<Film className='w-4 h-4' />
 					Bắt đầu tạo
@@ -289,20 +285,19 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 		);
 	}
 
-	// Review layout - simple video player with info and buttons
 	return (
 		<div className='flex flex-col items-center justify-center p-4 gap-6 max-w-2xl w-full mx-auto h-full'>
 
-			{/* Video Player */}
+			{ }
 			<div className='w-full bg-background rounded-xl overflow-hidden shadow-sm border border-border'>
 				<div className='aspect-video relative'>
 					{outputPath && <VideoPlayer src={outputPath} />}
 				</div>
 			</div>
 
-			{/* Info & Actions Section */}
+			{ }
 			<div className='w-full bg-background rounded-xl overflow-hidden shadow-sm border border-border p-4 space-y-3'>
-				{/* File info */}
+				{ }
 				<div className='space-y-2'>
 					<p className='text-xs text-muted-foreground font-semibold uppercase tracking-wide'>
 						Video Path
@@ -315,7 +310,7 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 					</p>
 				</div>
 
-				{/* Buttons */}
+				{ }
 				<div className='flex gap-2 pt-2'>
 					<Button
 						variant='secondary'
@@ -333,6 +328,15 @@ export const CreateFinalVideoPhase = ({ onComplete }: { onComplete?: () => void 
 						<RefreshCw className='w-4 h-4' />
 						Tạo lại
 					</Button>
+					{onComplete && (
+						<Button
+							className='gap-2 flex-1 shadow-sm'
+							onClick={onComplete}
+						>
+							<CheckCircle2 className='w-4 h-4' />
+							Hoàn tất
+						</Button>
+					)}
 				</div>
 			</div>
 		</div>

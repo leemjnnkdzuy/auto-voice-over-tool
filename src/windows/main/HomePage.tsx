@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Folder, Pin, Trash, Key } from "lucide-react";
+import { Plus, Folder, Pin, Trash, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ApiKeyManagerPopup } from "@/components/common/ApiKeyManagerPopup";
 
 interface Project {
     id: string;
@@ -32,13 +31,11 @@ export const HomePage = () => {
     const [projectPath, setProjectPath] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isPinned, setIsPinned] = useState(false);
-    const [isApiKeyOpen, setIsApiKeyOpen] = useState(false);
 
     useEffect(() => {
         loadProjects();
     }, []);
 
-    // Check if the current path matches the pinned path whenever it changes
     useEffect(() => {
         checkPinnedStatus();
     }, [projectPath, isDialogOpen]);
@@ -57,49 +54,24 @@ export const HomePage = () => {
     };
 
     const handleCreateProject = async () => {
-        // 1. Create the physical folder structure
         const success = await window.api.createProjectFolder(projectPath, projectName);
         if (!success) {
             alert("Không thể tạo thư mục project! (Có thể thư mục đã tồn tại)");
             return;
         }
 
-        // 2. The full path is now the base path + project name
-        // We might want to store the full path in the DB, or keep them separate.
-        // Usually "path" in DB means "where is this project located".
-        // Let's assume standard behavior: user picks "C:\Projects", names "MyApp", 
-        // real path is "C:\Projects\MyApp".
-        // BUT, currently the UI says "Đường dẫn" (Path) and inputs a base path.
-        // Let's update the path stored in DB to be the full path.
-        // Wait, standard Windows path joining...
-        // Use a simple string concatenation with separator derived from OS? 
-        // Or just let the backend handle path joining? 
-        // Ideally backend returns the full path. 
-        // For now, let's assume `path` input IS the parent folder.
-        // We will construct the display path as `projectPath` (parent) + `\` + `projectName`.
-        // Or better, let's just leave the path in DB as "C:\Parent\ProjectName".
-        // But `createProjectFolder` took (base, name).
-
-        // Let's make sure we construct the path correctly for DB storage.
-        // Since we don't have 'path' module in renderer, we can guess separator or just store the base.
-        // However, user usually wants to see the full path.
-
-        // Actually, let's just store what we have. "c:\Users\..." + "\" + "Name".
-        // To be safe, let's assume Windows backslash since user OS is Windows.
         const fullPath = `${projectPath.replace(/\/$/, '')}\\${projectName}`;
 
         const newProject = {
             id: crypto.randomUUID(),
             name: projectName,
             path: fullPath,
-            // pinned status is no longer saved per project in the DB
         };
 
         const created = await window.api.addProject(newProject);
         if (created) {
             loadProjects();
             setProjectName("");
-            // keep projectPath if it's pinned? yes the logic handles that.
             setIsDialogOpen(false);
             setIsPinned(false);
         }
@@ -114,11 +86,9 @@ export const HomePage = () => {
 
     const handlePinClick = async () => {
         if (isPinned) {
-            // Unpin
             await window.api.setPinnedPath("");
             setIsPinned(false);
         } else {
-            // Pin current path
             if (projectPath) {
                 await window.api.setPinnedPath(projectPath);
                 setIsPinned(true);
@@ -128,7 +98,7 @@ export const HomePage = () => {
 
     return (
         <div className="p-8">
-            {/* Top Left Buttons */}
+            {}
             <div className="mb-8 flex items-center gap-3">
                 <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <AlertDialogTrigger asChild>
@@ -204,7 +174,6 @@ export const HomePage = () => {
                                 onClick={(e: React.MouseEvent) => {
                                     if (!projectName || !projectPath) {
                                         e.preventDefault();
-                                        // Optional: Show error or toast
                                         return;
                                     }
                                     handleCreateProject();
@@ -216,15 +185,13 @@ export const HomePage = () => {
                     </AlertDialogContent>
                 </AlertDialog>
 
-                <Button variant="outline" className="gap-2" onClick={() => setIsApiKeyOpen(true)}>
-                    <Key className="w-4 h-4" />
-                    API Key
+                <Button variant="outline" className="gap-2" onClick={() => window.api.openSettingsWindow()}>
+                    <Settings className="w-4 h-4" />
+                    Cài đặt
                 </Button>
-
-                <ApiKeyManagerPopup open={isApiKeyOpen} onOpenChange={setIsApiKeyOpen} />
             </div>
 
-            {/* Project List */}
+            {}
             <div className="space-y-4">
                 <h2 className="text-2xl font-bold tracking-tight">Danh sách Project</h2>
                 {projects.length === 0 ? (
