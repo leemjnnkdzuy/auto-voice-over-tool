@@ -47,7 +47,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
     const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
     const retryCountRef = useRef(0);
-    const retryItemsQueueRef = useRef<number[]>([]);
 
     useEffect(() => {
         setGlobalProcessing(isGenerating);
@@ -232,7 +231,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
     return (
         <TooltipProvider>
             <div className="flex flex-col p-4 gap-4 max-w-7xl w-full mx-auto h-full overflow-hidden">
-                { }
                 <div className="flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                         <Volume2 className="w-5 h-5 text-primary" />
@@ -285,7 +283,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                     </div>
                 </div>
 
-                { }
                 {isGenerating && progress && (
                     <div className="shrink-0 space-y-1">
                         <Progress value={progress.progress} className="w-full h-2" />
@@ -295,7 +292,6 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                     </div>
                 )}
 
-                { }
                 <div className="flex-1 overflow-y-auto border rounded-xl">
                     <div className="divide-y">
                         {translatedEntries.map((entry, i) => {
@@ -314,7 +310,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         : 'hover:bg-muted/30'
                                         }`}
                                 >
-                                    { }
+                
                                     <div className="shrink-0 w-8 h-8 flex items-center justify-center">
                                         {status === 'generating' ? (
                                             <Spinner className="w-4 h-4 animate-spin text-primary" />
@@ -338,7 +334,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         )}
                                     </div>
 
-                                    { }
+                
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs text-muted-foreground font-mono mb-0.5">
                                             #{entry.index} • {entry.startTime}
@@ -346,7 +342,7 @@ export const AudioGeneratePhase = ({ onComplete }: { onComplete?: () => void }) 
                                         <p className="text-sm truncate">{entry.text}</p>
                                     </div>
 
-                                    { }
+                
                                     <div className="shrink-0 relative w-12 h-8 flex items-center justify-end">
                                         <div className="absolute inset-0 flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                             <Tooltip delayDuration={100}>

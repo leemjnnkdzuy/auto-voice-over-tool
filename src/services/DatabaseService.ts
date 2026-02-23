@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import path from 'path';
 
-let db: any;
+let db: Database.Database | null = null;
 
 export interface Project {
     id: string;
@@ -10,6 +10,10 @@ export interface Project {
     path: string;
     createdAt?: string;
     pinned?: boolean;
+}
+
+interface ProjectRow extends Omit<Project, 'pinned'> {
+    pinned: number;
 }
 
 export const connectDB = () => {
@@ -34,7 +38,9 @@ export const connectDB = () => {
 
         try {
             db.exec('ALTER TABLE projects ADD COLUMN pinned INTEGER DEFAULT 0');
-        } catch (e) {
+        } catch (error) {
+            // Ignore if the column already exists from a previous schema version.
+            console.debug('Skipping pinned column migration:', error);
         }
 
         return db;
@@ -46,8 +52,10 @@ export const connectDB = () => {
 
 export const getProjects = (): Project[] => {
     if (!db) connectDB();
-    const result = db.prepare('SELECT * FROM projects ORDER BY pinned DESC, createdAt DESC').all();
-    return result.map((p: any) => ({ ...p, pinned: !!p.pinned })) as Project[];
+    const result = db
+        .prepare('SELECT * FROM projects ORDER BY pinned DESC, createdAt DESC')
+        .all() as ProjectRow[];
+    return result.map((p) => ({ ...p, pinned: !!p.pinned }));
 };
 
 export const addProject = (project: Omit<Project, 'createdAt'>): Project | null => {

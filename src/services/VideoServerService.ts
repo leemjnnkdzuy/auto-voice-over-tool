@@ -15,7 +15,10 @@ export const closeStreamsForPath = (pathPrefix: string): void => {
         if (normalizedPath.startsWith(normalizedPrefix)) {
             try {
                 entry.stream.destroy();
-            } catch {  }
+            } catch (error) {
+                // Ignore destroy errors because the stream may already be closed.
+                void error;
+            }
             activeStreams.delete(entry);
         }
     }

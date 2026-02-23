@@ -143,8 +143,8 @@ export const setupAudioIpc = () => {
                     for (const f of oldFiles) {
                         try {
                             fs.unlinkSync(path.join(outputDir, f));
-                        } catch {
-
+                        } catch (cleanupError) {
+                            console.warn(`Không thể xóa file cũ ${f}:`, cleanupError);
                         }
                     }
                 }

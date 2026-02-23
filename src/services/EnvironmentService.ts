@@ -81,7 +81,9 @@ const readModelConfig = (): { activeModel: string } => {
         if (fs.existsSync(MODEL_CONFIG_PATH)) {
             return JSON.parse(fs.readFileSync(MODEL_CONFIG_PATH, 'utf-8'));
         }
-    } catch { }
+    } catch (error) {
+        console.warn('Failed to read model config, using default:', error);
+    }
     return { activeModel: 'base' };
 };
 
@@ -162,7 +164,11 @@ export const downloadWhisperModel = async (
     } catch (err) {
         console.error(`Failed to download model ${modelId}:`, err);
         if (fs.existsSync(destPath)) {
-            try { fs.unlinkSync(destPath); } catch { }
+            try {
+                fs.unlinkSync(destPath);
+            } catch (cleanupError) {
+                console.warn(`Failed to remove partial model file for ${modelId}:`, cleanupError);
+            }
         }
         activeDownloadConfig.modelId = null;
         activeDownloadConfig.percent = 0;
@@ -497,7 +503,11 @@ export const setupEnvironment = async (onProgress: ProgressCallback): Promise<bo
 
         if (!isWhisperModelReady()) {
             onProgress({ status: 'downloading', progress: 60, detail: 'Đang tải mô hình Whisper (base)...' });
-            const baseModel = WHISPER_MODELS.find(m => m.id === 'base')!;
+            const baseModel = WHISPER_MODELS.find(m => m.id === 'base');
+            if (!baseModel) {
+                onProgress({ status: 'error', progress: 60, detail: 'Thiếu cấu hình mô hình Whisper base!' });
+                return false;
+            }
             const baseModelPath = path.join(MODELS_DIR, baseModel.fileName);
             await downloadFile(baseModel.url, baseModelPath, (percent) => {
                 onProgress({ status: 'downloading', progress: 60 + percent * 0.35, detail: `Đang tải mô hình Whisper... ${percent}%` });

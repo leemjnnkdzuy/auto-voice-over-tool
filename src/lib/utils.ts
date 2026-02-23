@@ -203,23 +203,6 @@ export const stringifySrt = (entries: SrtEntry[]): string => {
   }).join('\n');
 };
 
-export const MINECRAFT_GLOSSARY = (langName: string) => `MINECRAFT GLOSSARY (English → ${langName}):
-Use the correct official translations for these Minecraft terms:
-
-Mobs: Creeper, Zombie, Skeleton, Spider, Enderman, Blaze, Ghast, Wither, Ender Dragon, Piglin, Hoglin, Zoglin, Warden, Allay, Villager, Iron Golem, Snow Golem, Phantom, Drowned, Husk, Stray, Witch, Pillager, Ravager, Vex, Evoker, Vindicator, Shulker, Guardian, Elder Guardian, Silverfish, Endermite, Slime, Magma Cube, Bee, Wolf, Cat, Fox, Axolotl, Frog, Sniffer, Camel, Breeze, Bogged, Wither Skeleton
-
-Items/Blocks: Diamond, Netherite, Obsidian, Bedrock, Redstone, Glowstone, End Stone, Nether Brick, Deepslate, Copper, Amethyst, Sculk, Anvil, Enchanting Table, Brewing Stand, Beacon, Conduit, Lodestone, Respawn Anchor, Shulker Box, Ender Chest, Barrel, Blast Furnace, Smoker, Composter, Lectern, Cartography Table, Smithing Table, Stonecutter, Grindstone, Loom, Campfire, Soul Campfire, Lantern, Soul Lantern, Chain, Candle, Tinted Glass, Spyglass, Bundle, Brush, Elytra, Trident, Totem of Undying, Shield, Crossbow, Firework Rocket
-
-Biomes/Dimensions: Overworld, Nether, The End, Deep Dark, Ancient City, Stronghold, Nether Fortress, Bastion Remnant, End City, Ocean Monument, Woodland Mansion, Trial Chamber, Plains, Forest, Desert, Taiga, Jungle, Swamp, Badlands, Mushroom Island, Cherry Grove, Mangrove Swamp, Lush Cave, Dripstone Cave, Frozen Ocean, Warm Ocean, Meadow, Snowy Slopes, Stony Peaks
-
-Gameplay: Survival, Creative, Hardcore, Adventure, Spectator, Enchantment, Potion, Splash Potion, Lingering Potion, Experience (XP), Level, Hunger, Health, Hearts, Armor, Durability, Crafting, Smelting, Brewing, Farming, Mining, Speedrun, Speedrunning, PvP, PvE, Mob farm, XP farm, Iron farm, Gold farm, Raid farm, Chunk, Spawn, Respawn, Portal, Nether Portal, End Portal, Ender Eye, Blaze Rod, Ender Pearl, Nether Star, Dragon Egg, Wither Rose, Trading, Villager Trading, Emerald, Loot, Chest loot, Structure, Generated structure
-
-Redstone/Technical: Redstone, Piston, Sticky Piston, Observer, Comparator, Repeater, Hopper, Dropper, Dispenser, TNT, Minecart, Rail, Powered Rail, Detector Rail, Activator Rail, Daylight Detector, Target Block, Sculk Sensor, Calibrated Sculk Sensor, Tripwire Hook, Pressure Plate, Button, Lever, Trapdoor, Fence Gate, Note Block, Jukebox, Bell
-
-Enchantments: Sharpness, Smite, Bane of Arthropods, Knockback, Fire Aspect, Looting, Sweeping Edge, Unbreaking, Mending, Efficiency, Fortune, Silk Touch, Protection, Blast Protection, Fire Protection, Projectile Protection, Feather Falling, Respiration, Aqua Affinity, Depth Strider, Frost Walker, Soul Speed, Swift Sneak, Thorns, Power, Punch, Flame, Infinity, Loyalty, Riptide, Channeling, Impaling, Multishot, Piercing, Quick Charge, Luck of the Sea, Lure, Curse of Vanishing, Curse of Binding, Wind Burst, Breach, Density
-
-Status Effects: Speed, Slowness, Haste, Mining Fatigue, Strength, Instant Health, Instant Damage, Jump Boost, Nausea, Regeneration, Resistance, Fire Resistance, Water Breathing, Invisibility, Blindness, Night Vision, Hunger, Weakness, Poison, Wither, Health Boost, Absorption, Saturation, Glowing, Levitation, Luck, Bad Luck, Slow Falling, Conduit Power, Hero of the Village, Darkness, Wind Charged, Weaving, Oozing, Infested, Raid Omen, Trial Omen`;
-
 export const TARGET_LANGUAGES = [
   { code: "vi", name: "Tiếng Việt", flag: "VN" },
   { code: "zh", name: "Tiếng Trung", flag: "CN" },

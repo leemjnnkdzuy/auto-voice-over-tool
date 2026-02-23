@@ -111,6 +111,10 @@ export const generateAllAudio = async (
     onProgress: (p: TTSProgress) => void,
     _concurrency = 1
 ): Promise<string[]> => {
+    if (_concurrency !== 1) {
+        console.warn(`generateAllAudio currently runs sequentially; ignoring concurrency=${_concurrency}`);
+    }
+
     ensureDir(outputDir);
 
     const voice = VOICE_MAP[langCode];

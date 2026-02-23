@@ -1,4 +1,6 @@
 import { ipcMain, dialog } from "electron";
+import fs from "fs";
+import path from "path";
 import {
     getProjects,
     addProject,
@@ -26,7 +28,7 @@ export const setupProjectIpc = () => {
 
     ipcMain.handle("delete-project", async (_event, id) => {
         const projects = getProjects();
-        const project = projects.find((p: any) => p.id === id);
+        const project = projects.find((p) => p.id === id);
         if (project) {
             closeStreamsForPath(project.path);
             await new Promise((r) => setTimeout(r, 300));
@@ -67,9 +69,6 @@ export const setupProjectIpc = () => {
     });
 
     ipcMain.handle("reset-project-data", (_event, projectPath: string) => {
-        const fs = require("fs");
-        const path = require("path");
-
         const foldersToDelete = ["original", "transcript", "translate", "audio_gene", "final"];
 
         for (const folder of foldersToDelete) {
@@ -79,13 +78,11 @@ export const setupProjectIpc = () => {
             }
         }
 
-        // Reset project.json
         const configFile = path.join(projectPath, "project.json");
         if (fs.existsSync(configFile)) {
             try {
                 const meta = JSON.parse(fs.readFileSync(configFile, "utf-8"));
-                // Keep only project name, clear everything else
-                const cleaned: any = {};
+                const cleaned: { name?: string } = {};
                 if (meta.name) cleaned.name = meta.name;
                 fs.writeFileSync(configFile, JSON.stringify(cleaned, null, 2), "utf-8");
             } catch {

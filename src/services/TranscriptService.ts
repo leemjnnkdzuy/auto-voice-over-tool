@@ -53,7 +53,7 @@ const runWhisper = (
     outputName: string,
     onProgress: ProgressCallback,
     engine: 'cpu' | 'gpu' = 'cpu',
-    language: string = 'auto'
+    language = 'auto'
 ): Promise<string | null> => {
     return new Promise((resolve) => {
         const whisperPath = getWhisperPath(engine);
@@ -163,7 +163,7 @@ export const transcribeAudio = async (
     projectPath: string,
     onProgress: ProgressCallback,
     engine: TranscriptEngine = 'whisper-cpu',
-    language: string = 'auto'
+    language = 'auto'
 ): Promise<{ srtPath: string; srtContent: string } | null> => {
     try {
         if (engine === 'assemblyai') {

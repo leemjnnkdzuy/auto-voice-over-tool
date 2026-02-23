@@ -1,6 +1,6 @@
 import { Spinner } from '@/components/ui/spinner';
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation, useSearchParams, matchPath, useParams } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams, matchPath } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Sparkles, CheckCircle2, Circle} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";

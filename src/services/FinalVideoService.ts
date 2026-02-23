@@ -449,7 +449,8 @@ export const createFinalVideo = async (
 
         while (queue.length > 0 || activeWorkers.length > 0) {
             while (queue.length > 0 && activeWorkers.length < CONCURRENCY) {
-                const item = queue.shift()!;
+                const item = queue.shift();
+                if (!item) break;
                 const worker = processItem(item.seg, item.idx).then(() => {
                     activeWorkers.splice(activeWorkers.indexOf(worker), 1);
                 });
@@ -492,7 +493,9 @@ export const createFinalVideo = async (
 
         try {
             fs.rmSync(tempDir, { recursive: true, force: true });
-        } catch { }
+        } catch (cleanupError) {
+            console.warn('Could not remove temp directory:', cleanupError);
+        }
 
         if (!concatSuccess || !fs.existsSync(outputPath)) {
             onProgress({ status: 'error', progress: 0, detail: 'Ghép video thất bại!' });
@@ -532,7 +535,11 @@ export const createFinalVideo = async (
         } else {
             console.warn('HandBrake re-render failed, keeping original concat output');
             if (fs.existsSync(rerenderedPath)) {
-                try { fs.unlinkSync(rerenderedPath); } catch { }
+                try {
+                    fs.unlinkSync(rerenderedPath);
+                } catch (cleanupError) {
+                    console.warn('Could not remove failed re-render output:', cleanupError);
+                }
             }
         }
 

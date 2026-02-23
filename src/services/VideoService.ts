@@ -7,7 +7,42 @@ const ensureDir = (dir: string) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 };
 
-export const getVideoInfo = async (url: string): Promise<any> => {
+export interface VideoInfo {
+    title: string;
+    thumbnail: string;
+    duration: number;
+    id: string;
+    url: string;
+    author: string;
+    viewCount: number;
+    uploadDate: string;
+    description: string;
+    isLive: boolean;
+}
+
+interface YtDlpDumpJson {
+    title?: string;
+    thumbnail?: string;
+    duration?: number;
+    id?: string;
+    webpage_url?: string;
+    original_url?: string;
+    uploader?: string;
+    channel?: string;
+    view_count?: number;
+    upload_date?: string | number;
+    description?: string;
+    is_live?: boolean;
+}
+
+const formatUploadDate = (uploadDate?: string | number): string => {
+    if (uploadDate === undefined || uploadDate === null) return '';
+    const value = String(uploadDate);
+    if (!/^\d{8}$/.test(value)) return '';
+    return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+};
+
+export const getVideoInfo = async (url: string): Promise<VideoInfo | null> => {
     return new Promise((resolve) => {
         try {
             const ytDlpPath = getYtDlpPath();
@@ -36,20 +71,18 @@ export const getVideoInfo = async (url: string): Promise<any> => {
                 }
 
                 try {
-                    const info = JSON.parse(stdout);
+                    const info = JSON.parse(stdout) as YtDlpDumpJson;
                     resolve({
                         title: info.title || '',
                         thumbnail: info.thumbnail || '',
-                        duration: info.duration || 0,
+                        duration: typeof info.duration === 'number' ? info.duration : 0,
                         id: info.id || '',
                         url: info.webpage_url || info.original_url || url,
                         author: info.uploader || info.channel || '',
-                        viewCount: info.view_count || 0,
-                        uploadDate: info.upload_date
-                            ? `${info.upload_date.slice(0, 4)}-${info.upload_date.slice(4, 6)}-${info.upload_date.slice(6, 8)}`
-                            : '',
+                        viewCount: typeof info.view_count === 'number' ? info.view_count : 0,
+                        uploadDate: formatUploadDate(info.upload_date),
                         description: info.description || '',
-                        isLive: info.is_live || false,
+                        isLive: Boolean(info.is_live),
                     });
                 } catch (e) {
                     console.error('Failed to parse yt-dlp output:', e);
