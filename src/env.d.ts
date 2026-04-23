@@ -95,5 +95,9 @@ interface Window {
             audio: boolean;
             final: boolean;
         }>;
+
+        youtubeLogin: () => Promise<boolean>;
+        hasYoutubeCookies: () => Promise<boolean>;
+        clearYoutubeCookies: () => Promise<boolean>;
     };
 }

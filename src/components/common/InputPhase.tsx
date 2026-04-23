@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import {  Clipboard, CheckCircle2, RotateCcw, ArrowRight, Upload, Link, FolderOpen } from "lucide-react";
+import {  Clipboard, CheckCircle2, RotateCcw, ArrowRight, Upload, Link, FolderOpen, LogIn, LogOut } from "lucide-react";
 import { useProcessContext } from "@/stores/ProcessStore";
 
 type InputMode = "choose" | "url" | "local";
@@ -24,6 +24,9 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
     const [localFileName, setLocalFileName] = useState("");
     const [isChecking, setIsChecking] = useState(true);
 
+    const [hasCookies, setHasCookies] = useState(false);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+
     const { setIsProcessing: setGlobalProcessing } = useProcessContext();
 
     const projectPathRef = useRef(projectPath);
@@ -35,6 +38,32 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
 
     useEffect(() => { projectPathRef.current = projectPath; }, [projectPath]);
     useEffect(() => { videoInfoRef.current = videoInfo; }, [videoInfo]);
+
+    // Check cookie status on mount
+    useEffect(() => {
+        window.api.hasYoutubeCookies().then(setHasCookies).catch(() => {});
+    }, []);
+
+    const handleYoutubeLogin = async () => {
+        setIsLoggingIn(true);
+        try {
+            const success = await window.api.youtubeLogin();
+            setHasCookies(success);
+        } catch (err) {
+            console.error("YouTube login failed:", err);
+        } finally {
+            setIsLoggingIn(false);
+        }
+    };
+
+    const handleYoutubeLogout = async () => {
+        try {
+            await window.api.clearYoutubeCookies();
+            setHasCookies(false);
+        } catch (err) {
+            console.error("Clear cookies failed:", err);
+        }
+    };
 
     useEffect(() => {
         let mounted = true;
@@ -253,6 +282,29 @@ export const InputPhase = ({ onComplete }: { onComplete?: () => void }) => {
                         </Button>
                         <h2 className="text-xl font-bold">Nhập URL Video</h2>
                     </div>
+
+                    {/* YouTube Login Banner */}
+                    <div className={`flex items-center gap-3 p-3 rounded-lg border text-sm ${hasCookies ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                        {hasCookies ? (
+                            <>
+                                <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                                <span className="flex-1 text-green-700 dark:text-green-400">Đã đăng nhập YouTube — sẵn sàng tải video.</span>
+                                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={handleYoutubeLogout}>
+                                    <LogOut className="w-4 h-4 mr-1" /> Đăng xuất
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <LogIn className="w-5 h-5 text-amber-500 shrink-0" />
+                                <span className="flex-1 text-amber-700 dark:text-amber-400">Đăng nhập YouTube để tải video không bị chặn.</span>
+                                <Button size="sm" variant="outline" onClick={handleYoutubeLogin} disabled={isLoggingIn}>
+                                    {isLoggingIn ? <Spinner className="w-4 h-4 mr-1 animate-spin" /> : <LogIn className="w-4 h-4 mr-1" />}
+                                    {isLoggingIn ? "Đang mở..." : "Đăng nhập"}
+                                </Button>
+                            </>
+                        )}
+                    </div>
+
                     <div className="flex gap-2 w-full">
                         <div className="relative flex-1">
                             <Input

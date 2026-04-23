@@ -6,7 +6,6 @@ import { TranslatePhase } from "@/components/common/TranslatePhase";
 import { AudioGeneratePhase } from "@/components/common/AudioGeneratePhase";
 import { CreateFinalVideoPhase } from "@/components/common/CreateFinalVideoPhase";
 
-const PHASE_ORDER = ["download", "transcript", "translate", "audio", "final"] as const;
 
 export const ProjectPage = () => {
     const { id } = useParams();

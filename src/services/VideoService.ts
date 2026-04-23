@@ -2,9 +2,19 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { getYtDlpPath, getFfmpegPath } from './EnvironmentService';
+import { getCookieFilePath, hasCookieFile } from './CookieService';
 
 const ensureDir = (dir: string) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+};
+
+/** Build common yt-dlp args for cookies + JS runtime */
+const getYtDlpCookieArgs = (): string[] => {
+    const args: string[] = ['--js-runtimes', 'node'];
+    if (hasCookieFile()) {
+        args.push('--cookies', getCookieFilePath());
+    }
+    return args;
 };
 
 export interface VideoInfo {
@@ -49,6 +59,7 @@ export const getVideoInfo = async (url: string): Promise<VideoInfo | null> => {
             const proc = spawn(ytDlpPath, [
                 '--dump-json',
                 '--no-download',
+                ...getYtDlpCookieArgs(),
                 url
             ]);
 
@@ -145,7 +156,8 @@ export const downloadVideo = async (
                 '--ffmpeg-location', ffmpegPath,
                 '-o', path.join(videoDir, '%(id)s.%(ext)s'),
                 '--newline',
-                '--no-part', // Avoid .part files for smoother progress tracking?
+                '--no-part',
+                ...getYtDlpCookieArgs(),
                 url
             ]);
 
@@ -190,6 +202,7 @@ export const downloadVideo = async (
                 '-o', path.join(audioDir, '%(id)s.%(ext)s'),
                 '--newline',
                 '--no-part',
+                ...getYtDlpCookieArgs(),
                 url
             ]);
 

@@ -90,4 +90,8 @@ contextBridge.exposeInMainWorld('api', {
     openInExplorer: (filePath: string) => ipcRenderer.invoke('open-in-explorer', filePath),
     openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
     checkProjectPhases: (projectPath: string) => ipcRenderer.invoke('check-project-phases', projectPath),
+
+    youtubeLogin: () => ipcRenderer.invoke('youtube-login'),
+    hasYoutubeCookies: () => ipcRenderer.invoke('has-youtube-cookies'),
+    clearYoutubeCookies: () => ipcRenderer.invoke('clear-youtube-cookies'),
 });
