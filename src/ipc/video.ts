@@ -1,10 +1,20 @@
-import {ipcMain, dialog} from "electron";
+import {ipcMain, dialog, WebContents} from "electron";
 import {getVideoInfo, downloadVideo} from "../services/VideoService";
 import {createFinalVideo} from "../services/FinalVideoService";
 import {getFfmpegPath} from "../services/EnvironmentService";
 import {spawn} from "child_process";
 import fs from "fs";
 import path from "path";
+
+const safeSend = (sender: WebContents, channel: string, ...args: any[]) => {
+	try {
+		if (!sender.isDestroyed()) {
+			sender.send(channel, ...args);
+		}
+	} catch {
+		// Frame was disposed, ignore
+	}
+};
 
 export const setupVideoIpc = () => {
 	ipcMain.handle("get-video-info", (_event, url) => {
@@ -13,9 +23,9 @@ export const setupVideoIpc = () => {
 
 	ipcMain.on("download-video", (event, url, projectPath) => {
 		downloadVideo(url, projectPath, (progress) => {
-			event.sender.send("download-progress", progress);
+			safeSend(event.sender,"download-progress", progress);
 		}).then((success) => {
-			event.sender.send("download-complete", success);
+			safeSend(event.sender,"download-complete", success);
 		});
 	});
 
@@ -56,7 +66,7 @@ export const setupVideoIpc = () => {
 			const destVideo = path.join(videoDir, `${baseName}${ext}`);
 			const destAudio = path.join(audioDir, `${baseName}.mp3`);
 
-			event.sender.send("import-local-progress", {
+			safeSend(event.sender,"import-local-progress", {
 				step: "copying",
 				progress: 0,
 				detail: "Đang copy video...",
@@ -66,11 +76,11 @@ export const setupVideoIpc = () => {
 				fs.copyFileSync(filePath, destVideo);
 			} catch (err) {
 				console.error("Copy video failed:", err);
-				event.sender.send("import-local-complete", false);
+				safeSend(event.sender,"import-local-complete", false);
 				return;
 			}
 
-			event.sender.send("import-local-progress", {
+			safeSend(event.sender,"import-local-progress", {
 				step: "copying",
 				progress: 50,
 				detail: "Copy video xong. Đang tách audio...",
@@ -112,7 +122,7 @@ export const setupVideoIpc = () => {
 							100,
 							Math.round((currentSec / totalSec) * 100),
 						);
-						event.sender.send("import-local-progress", {
+						safeSend(event.sender,"import-local-progress", {
 							step: "extracting",
 							progress: 50 + pct * 0.5,
 							detail: `Đang tách audio... ${pct}%`,
@@ -123,21 +133,21 @@ export const setupVideoIpc = () => {
 
 			proc.on("close", (code: number) => {
 				if (code === 0) {
-					event.sender.send("import-local-progress", {
+					safeSend(event.sender,"import-local-progress", {
 						step: "done",
 						progress: 100,
 						detail: "Hoàn tất!",
 					});
-					event.sender.send("import-local-complete", true);
+					safeSend(event.sender,"import-local-complete", true);
 				} else {
 					console.error("FFmpeg extract audio failed, code:", code);
-					event.sender.send("import-local-complete", false);
+					safeSend(event.sender,"import-local-complete", false);
 				}
 			});
 
 			proc.on("error", (err: Error) => {
 				console.error("FFmpeg spawn error:", err);
-				event.sender.send("import-local-complete", false);
+				safeSend(event.sender,"import-local-complete", false);
 			});
 		},
 	);
@@ -190,11 +200,11 @@ export const setupVideoIpc = () => {
 	ipcMain.on("create-final-video", async (event, projectPath: string) => {
 		try {
 			await createFinalVideo(projectPath, (p) => {
-				event.sender.send("final-video-progress", p);
+				safeSend(event.sender,"final-video-progress", p);
 			});
 		} catch (err) {
 			console.error("Create final video failed:", err);
-			event.sender.send("final-video-progress", {
+			safeSend(event.sender,"final-video-progress", {
 				status: "error",
 				progress: 0,
 				detail: `Lỗi: ${err}`,

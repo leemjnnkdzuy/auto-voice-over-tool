@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, WebContents } from "electron";
 import {
     setupEnvironment,
     isEnvironmentReady,
@@ -12,6 +12,16 @@ import {
     setWhisperDownloadStatus,
 } from "../services/EnvironmentService";
 
+const safeSend = (sender: WebContents, channel: string, ...args: any[]) => {
+    try {
+        if (!sender.isDestroyed()) {
+            sender.send(channel, ...args);
+        }
+    } catch {
+        // Frame was disposed, ignore
+    }
+};
+
 export const setupEnvironmentIpc = () => {
     ipcMain.handle("get-whisper-download-status", () => {
         return getWhisperDownloadStatus();
@@ -23,10 +33,10 @@ export const setupEnvironmentIpc = () => {
 
     ipcMain.on("setup-environment", (event) => {
         setupEnvironment((progress) => {
-            event.sender.send("setup-progress", progress);
+            safeSend(event.sender, "setup-progress", progress);
         }).then((success) => {
             if (!success) {
-                event.sender.send("setup-progress", {
+                safeSend(event.sender, "setup-progress", {
                     status: "error",
                     progress: 0,
                     detail: "Cài đặt môi trường thất bại!",
